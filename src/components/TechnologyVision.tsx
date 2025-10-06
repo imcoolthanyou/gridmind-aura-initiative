@@ -3,6 +3,9 @@
 import { motion, useScroll, useTransform } from "framer-motion"
 import { useRef } from "react"
 import { Brain, Cpu, Eye, Zap, TrendingUp, Shield, Clock, DollarSign } from "lucide-react"
+import dynamic from "next/dynamic"
+
+const Scene = dynamic(() => import('@/components/3DScene'), { ssr: false });
 
 export default function TechnologyVision() {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -112,7 +115,7 @@ export default function TechnologyVision() {
             transition={{ duration: 0.8 }}
             className="relative h-[600px]"
           >
-            <NeuralNetworkDiagram />
+            <Scene />
           </motion.div>
         </section>
 
@@ -399,139 +402,6 @@ export default function TechnologyVision() {
           </div>
         </motion.section>
       </div>
-    </div>
-  )
-}
-
-// Neural Network Diagram Component
-function NeuralNetworkDiagram() {
-  const layers = [
-    { neurons: 4, label: "Input Layer" },
-    { neurons: 6, label: "Hidden Layer 1" },
-    { neurons: 6, label: "Hidden Layer 2" },
-    { neurons: 3, label: "Output Layer" },
-  ]
-
-  return (
-    <div className="glass-panel p-8 h-full flex items-center justify-center">
-      <div className="flex items-center justify-between w-full gap-8">
-        {layers.map((layer, layerIndex) => (
-          <div key={layerIndex} className="flex flex-col items-center gap-8">
-            <div className="text-xs text-quantized-silver/60 font-semibold mb-2">
-              {layer.label}
-            </div>
-            {[...Array(layer.neurons)].map((_, neuronIndex) => (
-              <motion.div
-                key={neuronIndex}
-                className="relative"
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
-                transition={{ delay: layerIndex * 0.2 + neuronIndex * 0.1 }}
-              >
-                <motion.div
-                  className="w-4 h-4 rounded-full bg-electric-cyan border-2 border-electric-cyan/50"
-                  animate={{
-                    boxShadow: [
-                      "0 0 0px rgba(0, 255, 255, 0.5)",
-                      "0 0 20px rgba(0, 255, 255, 0.8)",
-                      "0 0 0px rgba(0, 255, 255, 0.5)",
-                    ],
-                  }}
-                  transition={{
-                    duration: 2,
-                    repeat: Infinity,
-                    delay: (layerIndex + neuronIndex) * 0.1,
-                  }}
-                />
-              </motion.div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// Data Fusion Visualization Component
-function DataFusionVisualization() {
-  const dataStreams = [
-    { name: "FRA", color: "var(--electric-cyan)", delay: 0 },
-    { name: "Acoustic", color: "var(--magenta)", delay: 0.2 },
-    { name: "Thermal", color: "var(--solar-orange)", delay: 0.4 },
-    { name: "DGA", color: "var(--amber)", delay: 0.6 },
-  ]
-
-  return (
-    <div className="relative h-64 flex items-center justify-center">
-      {/* Data sources */}
-      {dataStreams.map((stream, index) => {
-        const angle = (index * 360) / dataStreams.length
-        const radians = (angle * Math.PI) / 180
-        const radius = 120
-
-        return (
-          <motion.div
-            key={stream.name}
-            className="absolute"
-            style={{
-              left: `calc(50% + ${Math.cos(radians) * radius}px)`,
-              top: `calc(50% + ${Math.sin(radians) * radius}px)`,
-            }}
-            initial={{ opacity: 0, scale: 0 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-            transition={{ delay: stream.delay }}
-          >
-            <div
-              className="glass-panel px-4 py-2 whitespace-nowrap font-semibold"
-              style={{ color: stream.color }}
-            >
-              {stream.name}
-            </div>
-
-            {/* Animated connection line */}
-            <svg
-              className="absolute top-1/2 left-1/2 w-32 h-32 -z-10 overflow-visible"
-              style={{
-                transform: `translate(-50%, -50%) rotate(${angle + 180}deg)`,
-              }}
-            >
-              <motion.path
-                d="M 16 16 L 112 16"
-                stroke={stream.color}
-                strokeWidth="2"
-                fill="none"
-                initial={{ pathLength: 0 }}
-                whileInView={{ pathLength: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 1, delay: stream.delay }}
-                style={{ filter: `drop-shadow(0 0 4px ${stream.color})` }}
-              />
-            </svg>
-          </motion.div>
-        )
-      })}
-
-      {/* Central AI processor */}
-      <motion.div
-        className="glass-panel-bright p-6 rounded-full relative z-10"
-        initial={{ scale: 0 }}
-        whileInView={{ scale: 1 }}
-        viewport={{ once: true }}
-        transition={{ delay: 0.8, type: "spring" }}
-      >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-        >
-          <Brain className="w-12 h-12 text-electric-cyan" />
-        </motion.div>
-        <motion.div
-          className="absolute inset-0 rounded-full border-2 border-electric-cyan/30"
-          animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0, 0.5] }}
-          transition={{ duration: 2, repeat: Infinity }}
-        />
-      </motion.div>
     </div>
   )
 }
