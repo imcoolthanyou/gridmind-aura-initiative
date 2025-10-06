@@ -1,9 +1,9 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, memo } from "react"
 import { motion, useScroll, useTransform, useMotionValue } from "framer-motion"
 
-export default function EnhancedParticleField() {
+const EnhancedParticleField = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mouseX = useMotionValue(0)
@@ -138,39 +138,33 @@ export default function EnhancedParticleField() {
         const y2d = this.y * scale + canvas.height / 2
         const size = this.size * scale
 
+        if (size < 0) return; // Don't draw if behind camera
+
         // Pulsing effect
         const pulse = Math.sin(time * 0.003 + this.baseX * 0.01) * 0.3 + 0.7
 
-        // Multi-layered glow
-        for (let i = 3; i > 0; i--) {
-          const glowSize = size * (3 + i)
-          const gradient = ctx.createRadialGradient(x2d, y2d, 0, x2d, y2d, glowSize)
-          const alpha = this.isForming ? 0.6 : 0.4
-          gradient.addColorStop(0, `rgba(${this.color}, ${alpha * pulse})`)
-          gradient.addColorStop(0.5, `rgba(${this.color}, ${alpha * 0.3 * pulse})`)
-          gradient.addColorStop(1, "rgba(0, 0, 0, 0)")
+        // Simplified single-layer glow
+        const glowSize = size * 5
+        const gradient = ctx.createRadialGradient(x2d, y2d, 0, x2d, y2d, glowSize)
+        const alpha = this.isForming ? 0.5 : 0.3
+        gradient.addColorStop(0, `rgba(${this.color}, ${alpha * pulse})`)
+        gradient.addColorStop(1, "rgba(0, 0, 0, 0)")
 
-          ctx.fillStyle = gradient
-          ctx.beginPath()
-          ctx.arc(x2d, y2d, glowSize, 0, Math.PI * 2)
-          ctx.fill()
-        }
+        ctx.fillStyle = gradient
+        ctx.beginPath()
+        ctx.arc(x2d, y2d, glowSize, 0, Math.PI * 2)
+        ctx.fill()
 
-        // Core particle with chromatic effect
-        ctx.shadowBlur = 20
-        ctx.shadowColor = `rgb(${this.color})`
-        ctx.fillStyle = this.isForming
-          ? `rgba(${this.color}, ${pulse})`
-          : `rgba(${this.color}, ${0.8 * pulse})`
+        // Core particle
+        ctx.fillStyle = `rgba(${this.color}, ${this.isForming ? 1 : 0.8 * pulse})`
         ctx.beginPath()
         ctx.arc(x2d, y2d, size, 0, Math.PI * 2)
         ctx.fill()
-        ctx.shadowBlur = 0
       }
     }
 
     const particles: Particle[] = []
-    const particleCount = 800
+    const particleCount = 200
     for (let i = 0; i < particleCount; i++) {
       particles.push(new Particle())
     }
@@ -183,7 +177,7 @@ export default function EnhancedParticleField() {
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
       // Energy lines between forming particles
-      if (scrollProgress > 0.15 && scrollProgress < 0.4) {
+      /* if (scrollProgress > 0.15 && scrollProgress < 0.4) {
         ctx.strokeStyle = "rgba(0, 255, 255, 0.15)"
         ctx.lineWidth = 0.5
         particles.forEach((p1, i) => {
@@ -214,7 +208,7 @@ export default function EnhancedParticleField() {
             }
           })
         })
-      }
+      } */
 
       particles.forEach((particle) => {
         particle.update(scrollProgress, currentMouseX, currentMouseY)
@@ -248,3 +242,5 @@ export default function EnhancedParticleField() {
     </div>
   )
 }
+
+export default memo(EnhancedParticleField)
