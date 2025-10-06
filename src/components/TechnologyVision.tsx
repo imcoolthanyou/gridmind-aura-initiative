@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform } from "framer-motion"
 import { useRef } from "react"
 import { Brain, Cpu, Eye, Zap, TrendingUp, Shield, Clock, DollarSign } from "lucide-react"
 import dynamic from "next/dynamic"
+import DataFusionVisualization from '@/components/DataFusionVisualization'
 
 const Scene = dynamic(() => import('@/components/3DScene'), { ssr: false });
 
