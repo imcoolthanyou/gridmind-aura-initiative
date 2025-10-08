@@ -6,6 +6,12 @@ import { Radio, Thermometer, Waves, Droplets } from "lucide-react"
 interface FusionDiagnosticsProps {
   onOverlayChange: (overlay: string | null) => void
   activeOverlay: string | null
+  staticData?: {
+    fra: number
+    acoustic: number
+    thermal: number
+    dga: number
+  }
 }
 
 const dataStreams = [
@@ -46,14 +52,37 @@ const dataStreams = [
 export default function FusionDiagnostics({
   onOverlayChange,
   activeOverlay,
+  staticData,
 }: FusionDiagnosticsProps) {
+  // Check for current asset data from localStorage
+  const getCurrentAssetData = () => {
+    try {
+      const stored = localStorage.getItem('current-asset-data')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }
+  
+  // Use static data if provided, otherwise check localStorage, otherwise use default
+  const assetData = getCurrentAssetData()
+  const correlationSource = staticData || (assetData?.data?.correlations)
+  
+  const correlationData = correlationSource ? [
+    { ...dataStreams[0], correlation: correlationSource.fra },
+    { ...dataStreams[1], correlation: correlationSource.acoustic },
+    { ...dataStreams[2], correlation: correlationSource.thermal },
+    { ...dataStreams[3], correlation: correlationSource.dga }
+  ] : dataStreams
   return (
     <div className="glass-panel p-6 h-[400px] flex flex-col">
       <div className="mb-6">
         <h2 className="text-xl font-bold text-quantized-silver font-sans mb-1">
-          Fusion Diagnostics
+          {correlationSource ? 'Static Correlation Matrix' : 'Fusion Diagnostics'}
         </h2>
-        <p className="text-sm text-quantized-silver/60">Multi-modal correlation</p>
+        <p className="text-sm text-quantized-silver/60">
+          {correlationSource ? 'CSV-based multi-modal correlation' : 'Multi-modal correlation'}
+        </p>
       </div>
 
       {/* Correlation radar chart visualization */}
@@ -71,7 +100,7 @@ export default function FusionDiagnostics({
           ))}
 
           {/* Data points */}
-          {dataStreams.map((stream, index) => {
+          {correlationData.map((stream, index) => {
             const angle = (index * 360) / dataStreams.length - 90
             const radians = (angle * Math.PI) / 180
             const radius = (stream.correlation / 100) * 96 // 48px radius max
@@ -119,7 +148,7 @@ export default function FusionDiagnostics({
 
       {/* Data stream cards */}
       <div className="space-y-2">
-        {dataStreams.map((stream, index) => {
+        {correlationData.map((stream, index) => {
           const Icon = stream.icon
           const isActive = activeOverlay === stream.id
 
@@ -196,7 +225,7 @@ export default function FusionDiagnostics({
           className="mt-4 p-2 rounded-lg bg-electric-cyan/5 border border-electric-cyan/20 text-center"
         >
           <p className="text-xs text-electric-cyan">
-            {dataStreams.find((s) => s.id === activeOverlay)?.name} overlay active
+            {correlationData.find((s) => s.id === activeOverlay)?.name} overlay active
           </p>
         </motion.div>
       )}

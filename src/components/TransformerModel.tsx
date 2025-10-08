@@ -1,8 +1,12 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { useState } from "react"
-import { AlertCircle, CheckCircle, Zap } from "lucide-react"
+import { useState, useEffect, Suspense } from "react"
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { useGLTF, OrbitControls, Environment, Center, Html } from '@react-three/drei'
+import { useRef } from 'react'
+import { Group, Vector3 } from 'three'
+import React from 'react'
 
 interface TransformerModelProps {
   selectedComponent: string | null
@@ -14,61 +18,398 @@ interface Component {
   id: string
   name: string
   status: "healthy" | "warning" | "critical"
-  position: { x: number; y: number }
+  position: { x: number; y: number; z: number }
   temperature?: number
   vibration?: number
+  description?: string
 }
 
-const components: Component[] = [
-  {
-    id: "winding-primary",
-    name: "Primary Winding",
-    status: "healthy",
-    position: { x: 45, y: 30 },
-    temperature: 65,
-    vibration: 0.2,
-  },
-  {
-    id: "winding-secondary",
-    name: "Secondary Winding",
-    status: "warning",
-    position: { x: 55, y: 30 },
-    temperature: 89,
-    vibration: 0.7,
-  },
-  {
-    id: "core",
-    name: "Magnetic Core",
-    status: "healthy",
-    position: { x: 50, y: 45 },
-    temperature: 72,
-    vibration: 0.3,
-  },
-  {
-    id: "oil-tank",
-    name: "Oil Tank",
-    status: "critical",
-    position: { x: 50, y: 65 },
-    temperature: 95,
-    vibration: 0.9,
-  },
-  {
-    id: "bushing",
-    name: "HV Bushing",
-    status: "healthy",
-    position: { x: 50, y: 15 },
-    temperature: 58,
-    vibration: 0.1,
-  },
-]
+// Get component data from CSV or localStorage
+const getComponentData = () => {
+  try {
+    const assetData = localStorage.getItem('current-asset-data')
+    if (assetData) {
+      const data = JSON.parse(assetData)
+      return data.data?.sensors || {}
+    }
+  } catch {
+    // Fallback to static components
+  }
+  return {}
+}
+
+// Generate components from CSV data
+const getComponentsFromCSV = () => {
+  const csvData = getComponentData()
+  const components: Component[] = []
+  
+  // Create components based on CSV sensor data
+  Object.keys(csvData).forEach((sensorId, index) => {
+    const sensor = csvData[sensorId]
+    components.push({
+      id: sensorId,
+      name: sensor.type || `Component ${index + 1}`,
+      status: sensor.status === 'anomaly' ? 'critical' : 
+              sensor.status === 'warning' ? 'warning' : 'healthy',
+      position: {
+        x: (index % 3 - 1) * 2,
+        y: Math.floor(index / 3) * 1.5,
+        z: 0
+      },
+      temperature: sensor.type === 'Temperature' ? parseFloat(sensor.value) : undefined,
+      vibration: sensor.type === 'Vibration' ? parseFloat(sensor.value) : undefined,
+      description: `${sensor.type}: ${sensor.value} ${sensor.unit}`
+    })
+  })
+  
+  // If no CSV data, return default components
+  if (components.length === 0) {
+    return [
+      {
+        id: 'primary_winding',
+        name: 'Primary Winding',
+        status: 'healthy' as const,
+        position: { x: -1.5, y: 0, z: 0 },
+        temperature: 85,
+        description: 'Primary winding temperature and electrical status'
+      },
+      {
+        id: 'secondary_winding',
+        name: 'Secondary Winding', 
+        status: 'critical' as const,
+        position: { x: 1.5, y: 0, z: 0 },
+        temperature: 127,
+        description: 'Secondary winding overheating detected'
+      },
+      {
+        id: 'oil_tank',
+        name: 'Oil Tank',
+        status: 'critical' as const,
+        position: { x: 0, y: -1.5, z: 0 },
+        temperature: 134,
+        description: 'Oil temperature critical - cooling required'
+      },
+      {
+        id: 'bushings',
+        name: 'Bushings',
+        status: 'warning' as const,
+        position: { x: 0, y: 2, z: 0 },
+        description: 'Bushing insulation monitoring'
+      }
+    ]
+  }
+  
+  return components
+}
+
+// Static component mapping based on CSV sensor IDs
+const getComponentStatus = (componentId: string, csvData: any) => {
+  const sensorData = csvData[componentId]
+  if (sensorData) {
+    return sensorData.status === 'anomaly' ? 'critical' : 
+           sensorData.status === 'warning' ? 'warning' : 'healthy'
+  }
+  // Default status for components not in CSV
+  return 'healthy'
+}
+
+const getComponentDescription = (componentId: string, csvData: any) => {
+  const sensorData = csvData[componentId]
+  if (sensorData) {
+    return `${sensorData.type}: ${sensorData.value} ${sensorData.unit}`
+  }
+  return 'Component status based on CSV analysis'
+}
+
+// 3D Health Indicator Component - CSV-based
+function HealthIndicator({ 
+  component,
+  isSelected, 
+  onSelect,
+  getStatusColor,
+  getStatusIcon 
+}: {
+  component: Component
+  isSelected: boolean
+  onSelect: () => void
+  getStatusColor: (status: string) => string
+  getStatusIcon: (status: string) => React.ReactElement
+}) {
+  const status = component.status
+  const description = component.description || 'CSV-based component analysis'
+  const statusColor = getStatusColor(status)
+  
+  return (
+    <Html
+      position={[component.position.x, component.position.y + 0.8, component.position.z]}
+      distanceFactor={6}
+      occlude
+      style={{ pointerEvents: 'auto' }}
+    >
+      <div className="relative flex flex-col items-center">
+        {/* Health Status Box */}
+        <div
+          className={`
+            w-6 h-6 rounded border-2 cursor-pointer relative backdrop-blur-sm
+            ${status === 'healthy' ? 'bg-green-500/40 border-green-400' : ''}
+            ${status === 'warning' ? 'bg-yellow-500/40 border-yellow-400' : ''}
+            ${status === 'critical' ? 'bg-red-500/40 border-red-400' : ''}
+          `}
+          onClick={onSelect}
+          style={{
+            transform: isSelected ? 'scale(1.2)' : 'scale(1)',
+            boxShadow: `0 0 ${isSelected ? '20px' : '10px'} ${statusColor}`
+          }}
+        >
+          {/* Status Text */}
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div style={{ color: statusColor }} className="text-xs drop-shadow-lg font-bold">
+              {getStatusIcon(status)}
+            </div>
+          </div>
+        </div>
+
+        {/* Component Label */}
+        <div className="mt-1 text-xs text-center backdrop-blur-sm">
+          <div className="bg-gray-900/80 px-1.5 py-0.5 rounded border border-gray-600/50 text-white shadow-lg text-xs">
+            <span className="font-medium">{component.name}</span>
+          </div>
+        </div>
+
+        {/* CSV-based Tooltip */}
+        {isSelected && (
+          <div className="absolute top-full mt-2 left-1/2 transform -translate-x-1/2 bg-gray-900/95 backdrop-blur-md p-3 min-w-[220px] rounded-lg border border-gray-600/50 shadow-2xl z-50">
+            <div className="flex items-center gap-2 mb-2">
+              <div style={{ color: statusColor }}>
+                {getStatusIcon(status)}
+              </div>
+              <span className="font-semibold text-sm text-white">
+                {component.name}
+              </span>
+              <span 
+                className="text-xs px-1.5 py-0.5 rounded-full font-bold"
+                style={{ 
+                  backgroundColor: `${statusColor}30`,
+                  color: statusColor,
+                  border: `1px solid ${statusColor}60`
+                }}
+              >
+                {status.toUpperCase()}
+              </span>
+            </div>
+            
+            <p className="text-xs text-gray-300 mb-2">
+              {description}
+            </p>
+            
+            <div className="mt-2 pt-1.5 border-t border-gray-600">
+              <span className="text-xs text-gray-500">
+                Data source: CSV analysis
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+    </Html>
+  )
+}
+
+// Enhanced 3D Model Component with attached health indicators
+function TransformerModel3D({ 
+  selectedComponent,
+  onComponentSelect,
+  getStatusColor,
+  getStatusIcon 
+}: {
+  selectedComponent: string | null
+  onComponentSelect: (id: string) => void
+  getStatusColor: (status: string) => string
+  getStatusIcon: (status: string) => React.ReactElement
+}) {
+  const groupRef = useRef<Group>(null)
+  
+  // Try to load the transformer model, fallback to simple geometry
+  let modelData: any = null
+  let hasError = false
+  
+  try {
+    modelData = useGLTF('/transformer-part-2.glb')
+  } catch (err) {
+    console.log('Using fallback model')
+    hasError = true
+  }
+  
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.1
+      groupRef.current.position.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.05
+    }
+  })
+  
+  return (
+    <Center>
+      <group ref={groupRef}>
+        {/* 3D Model */}
+        {!hasError && modelData?.scene ? (
+          <primitive 
+            object={modelData.scene.clone()} 
+            scale={1.2}
+            castShadow
+            receiveShadow
+          />
+        ) : (
+          // Fallback transformer representation
+          <>
+            <mesh position={[0, 0, 0]} castShadow receiveShadow>
+              <boxGeometry args={[4, 3, 2]} />
+              <meshStandardMaterial 
+                color="#3a3a3a" 
+                metalness={0.7}
+                roughness={0.2}
+                emissive="#001122"
+                emissiveIntensity={0.1}
+              />
+            </mesh>
+            {/* Primary winding */}
+            <mesh position={[-1.5, 0, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[0.4, 0.4, 2.5, 16]} />
+              <meshStandardMaterial 
+                color="#4a9eff" 
+                emissive="#4a9eff" 
+                emissiveIntensity={0.2}
+                metalness={0.6}
+                roughness={0.3}
+              />
+            </mesh>
+            {/* Secondary winding */}
+            <mesh position={[1.5, 0, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[0.4, 0.4, 2.5, 16]} />
+              <meshStandardMaterial 
+                color="#ff4a4a" 
+                emissive="#ff4a4a" 
+                emissiveIntensity={0.2}
+                metalness={0.6}
+                roughness={0.3}
+              />
+            </mesh>
+            {/* Bushings */}
+            <mesh position={[0, 2, 0]} castShadow receiveShadow>
+              <cylinderGeometry args={[0.15, 0.15, 1, 8]} />
+              <meshStandardMaterial 
+                color="#cccccc" 
+                metalness={0.9}
+                roughness={0.1}
+              />
+            </mesh>
+            {/* Oil tank indicator */}
+            <mesh position={[0, -1.8, 0]} castShadow receiveShadow>
+              <boxGeometry args={[3.5, 0.4, 1.8]} />
+              <meshStandardMaterial 
+                color="#2a2a2a" 
+                transparent 
+                opacity={0.8}
+                metalness={0.3}
+                roughness={0.7}
+              />
+            </mesh>
+          </>
+        )}
+        
+        {/* Health Indicators attached to 3D model parts */}
+        {getComponentsFromCSV().map((component) => (
+          <HealthIndicator
+            key={component.id}
+            component={component}
+            isSelected={selectedComponent === component.id}
+            onSelect={() => onComponentSelect(component.id)}
+            getStatusColor={getStatusColor}
+            getStatusIcon={getStatusIcon}
+          />
+        ))}
+      </group>
+    </Center>
+  )
+}
+
+// Loading fallback for 3D scene
+function LoadingModel() {
+  const meshRef = useRef<Group>(null)
+  
+  useFrame((state) => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y = state.clock.elapsedTime * 0.5
+    }
+  })
+  
+  return (
+    <group ref={meshRef}>
+      <mesh>
+        <icosahedronGeometry args={[1, 1]} />
+        <meshStandardMaterial 
+          color="#00FFFF" 
+          wireframe 
+          emissive="#00FFFF"
+          emissiveIntensity={0.3}
+        />
+      </mesh>
+    </group>
+  )
+}
 
 export default function TransformerModel({
   selectedComponent,
   onComponentSelect,
   fusionOverlay,
 }: TransformerModelProps) {
-  const [rotation, setRotation] = useState({ x: 0, y: 0 })
-  const [isDragging, setIsDragging] = useState(false)
+  const [csvData, setCsvData] = useState<any>({})
+  const [currentAsset, setCurrentAsset] = useState<string>('TX-47B')
+  const [transformerId, setTransformerId] = useState<string>('TX-47B')
+  
+  // Load CSV data from localStorage and sync with asset changes
+  useEffect(() => {
+    const loadCurrentAssetData = () => {
+      try {
+        // Check for current asset data from dashboard
+        const currentAssetData = localStorage.getItem('current-asset-data')
+        if (currentAssetData) {
+          const data = JSON.parse(currentAssetData)
+          setCsvData(data.data?.sensors || {})
+          setCurrentAsset(data.selectedAsset || 'TX-47B')
+          setTransformerId(data.selectedAsset || 'TX-47B')
+          return
+        }
+        
+        // Fallback to analysis results
+        const assetData = localStorage.getItem('aura-diagnostic-data')
+        if (assetData) {
+          const data = JSON.parse(assetData)
+          if (data.csvData) {
+            setCsvData(data.csvData.sensors || {})
+            setCurrentAsset(data.csvData.transformerId || 'TX-47B')
+            setTransformerId(data.csvData.transformerId || 'TX-47B')
+          }
+        }
+      } catch (error) {
+        console.log('No asset data found, using defaults')
+      }
+    }
+    
+    // Initial load
+    loadCurrentAssetData()
+    
+    // Listen for storage changes and periodic updates
+    const handleStorageChange = () => {
+      loadCurrentAssetData()
+    }
+    
+    window.addEventListener('storage', handleStorageChange)
+    const interval = setInterval(loadCurrentAssetData, 500) // Check more frequently
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange)
+      clearInterval(interval)
+    }
+  }, [])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -83,234 +424,209 @@ export default function TransformerModel({
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string): React.ReactElement => {
     switch (status) {
       case "healthy":
-        return <CheckCircle className="w-4 h-4" />
+        return <span className="text-xs font-bold text-green-400">OK</span>
       case "warning":
-        return <AlertCircle className="w-4 h-4" />
+        return <span className="text-xs font-bold text-yellow-400">WARN</span>
       case "critical":
-        return <Zap className="w-4 h-4" />
+        return <span className="text-xs font-bold text-red-400">CRIT</span>
+      default:
+        return <span className="text-xs font-bold text-gray-400">UNK</span>
     }
   }
 
   return (
-    <div className="glass-panel h-[600px] p-6 relative overflow-hidden group">
+    <div className="glass-panel h-[700px] p-6 relative overflow-hidden group">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-quantized-silver font-sans">
           Digital Twin Model
         </h2>
         <div className="flex gap-2 text-xs">
-          <span className="px-3 py-1 rounded-full bg-electric-cyan/10 text-electric-cyan border border-electric-cyan/30">
-            Unit: TX-47B
-          </span>
-          <span className="px-3 py-1 rounded-full bg-quantized-silver/10 text-quantized-silver/70">
-            Last Update: 2s ago
+          <motion.span 
+            className="px-3 py-1 rounded-full bg-electric-cyan/20 text-electric-cyan border border-electric-cyan/50"
+            animate={{ opacity: [1, 0.5, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          >
+            CSV DATA ACTIVE
+          </motion.span>
+          <span className="px-3 py-1 rounded-full bg-amber/10 text-amber border border-amber/30">
+            Unit: {transformerId}
           </span>
         </div>
       </div>
-
-      {/* 3D Transformer Visualization */}
-      <div
-        className="relative h-[400px] flex items-center justify-center cursor-grab active:cursor-grabbing"
-        onMouseDown={() => setIsDragging(true)}
-        onMouseUp={() => setIsDragging(false)}
-        onMouseLeave={() => setIsDragging(false)}
-        onMouseMove={(e) => {
-          if (isDragging) {
-            setRotation({
-              x: rotation.x + e.movementY * 0.5,
-              y: rotation.y + e.movementX * 0.5,
-            })
-          }
-        }}
+      
+      {/* CSV-based Status Banner */}
+      <motion.div 
+        className="mb-4 p-3 rounded-lg border-l-4 border-electric-cyan bg-electric-cyan/5"
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ delay: 0.5 }}
       >
-        <motion.div
-          className="relative w-full h-full"
-          style={{
-            transformStyle: "preserve-3d",
-            transform: `rotateX(${rotation.x}deg) rotateY(${rotation.y}deg)`,
-          }}
-        >
-          {/* Main transformer body */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-electric-cyan mb-1">
+              ANALYSIS: CSV-based diagnostics active
+            </h3>
+            <p className="text-xs text-quantized-silver/70">
+              Monitoring {Object.keys(csvData).length} sensors from uploaded CSV data
+            </p>
+          </div>
           <motion.div
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
-            style={{ transformStyle: "preserve-3d" }}
-          >
-            {/* Core structure */}
-            <div className="relative w-48 h-64">
-              {/* Tank */}
-              <div className="absolute inset-0 glass-panel-bright border-2 border-electric-cyan/30 rounded-lg">
-                <div className="absolute inset-0 bg-gradient-to-b from-electric-cyan/5 to-transparent" />
-              </div>
+            className="w-3 h-3 rounded-full bg-electric-cyan"
+            animate={{ scale: [1, 1.5, 1] }}
+            transition={{ duration: 2, repeat: Infinity }}
+          />
+        </div>
+      </motion.div>
 
-              {/* Components with hotspots */}
-              {components.map((component) => {
-                const isSelected = selectedComponent === component.id
-                const statusColor = getStatusColor(component.status)
+      {/* Main 3D Scene Container */}
+      <div className="relative h-[500px] bg-gradient-to-br from-void via-electric-cyan/5 to-quantized-silver/10 rounded-lg border border-electric-cyan/30 overflow-hidden shadow-lg shadow-electric-cyan/20">
+        {/* 3D Canvas */}
+        <Canvas
+          camera={{ 
+            position: [6, 4, 6], 
+            fov: 60
+          }}
+          gl={{ antialias: true, alpha: true }}
+        >
+          <color attach="background" args={['#0f0f23']} />
+          
+          <Suspense fallback={<LoadingModel />}>
+            {/* Enhanced Professional Lighting Setup */}
+            <ambientLight intensity={0.4} color="#ffffff" />
+            
+            {/* Key light - Main illumination */}
+            <directionalLight 
+              position={[8, 8, 5]} 
+              intensity={1.5} 
+              color="#00FFFF"
+              castShadow
+              shadow-mapSize-width={2048}
+              shadow-mapSize-height={2048}
+            />
+            
+            {/* Fill light - Reduces harsh shadows */}
+            <directionalLight 
+              position={[-5, 3, 3]} 
+              intensity={0.8} 
+              color="#4169E1"
+            />
+            
+            {/* Rim light - Creates depth and separation */}
+            <directionalLight 
+              position={[0, -5, -8]} 
+              intensity={0.6} 
+              color="#00CED1"
+            />
+            
+            {/* Accent lights for dramatic effect */}
+            <pointLight 
+              position={[3, 4, 2]} 
+              intensity={0.7} 
+              color="#00FFFF"
+              distance={15}
+              decay={2}
+            />
+            
+            <pointLight 
+              position={[-3, 2, 4]} 
+              intensity={0.5} 
+              color="#FF00FF"
+              distance={12}
+              decay={2}
+            />
+            
+            {/* Bottom accent light */}
+            <pointLight 
+              position={[0, -3, 2]} 
+              intensity={0.4} 
+              color="#FFA500"
+              distance={10}
+              decay={2}
+            />
+            
+            {/* Spot light for focused illumination */}
+            <spotLight
+              position={[5, 10, 5]}
+              angle={0.3}
+              penumbra={0.2}
+              intensity={0.8}
+              color="#00FFFF"
+              castShadow
+            />
 
-                return (
-                  <motion.div
-                    key={component.id}
-                    className="absolute group/component"
-                    style={{
-                      left: `${component.position.x}%`,
-                      top: `${component.position.y}%`,
-                      transform: "translate(-50%, -50%)",
-                    }}
-                    whileHover={{ scale: 1.2 }}
-                    onClick={() => onComponentSelect(component.id)}
-                  >
-                    {/* Hotspot */}
-                    <motion.div
-                      className="w-6 h-6 rounded-full cursor-pointer relative"
-                      style={{
-                        backgroundColor: statusColor,
-                        boxShadow: `0 0 20px ${statusColor}`,
-                      }}
-                      animate={{
-                        scale: isSelected ? [1, 1.3, 1] : 1,
-                        opacity: component.status === "critical" ? [0.5, 1, 0.5] : 1,
-                      }}
-                      transition={{
-                        duration: 2,
-                        repeat: component.status === "critical" ? Infinity : 0,
-                      }}
-                    >
-                      {/* Pulsing ring for critical */}
-                      {component.status === "critical" && (
-                        <motion.div
-                          className="absolute inset-0 rounded-full border-2"
-                          style={{ borderColor: statusColor }}
-                          animate={{
-                            scale: [1, 2, 2],
-                            opacity: [1, 0, 0],
-                          }}
-                          transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                          }}
-                        />
-                      )}
-                    </motion.div>
+            {/* 3D Transformer Model with attached indicators */}
+            <TransformerModel3D 
+              selectedComponent={selectedComponent}
+              onComponentSelect={onComponentSelect}
+              getStatusColor={getStatusColor}
+              getStatusIcon={getStatusIcon}
+            />
 
-                    {/* Tooltip */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      whileHover={{ opacity: 1, y: 0 }}
-                      className="absolute left-full ml-4 top-1/2 -translate-y-1/2 glass-panel p-3 min-w-[200px] z-20 pointer-events-none"
-                    >
-                      <div className="flex items-center gap-2 mb-2">
-                        <div style={{ color: statusColor }}>
-                          {getStatusIcon(component.status)}
-                        </div>
-                        <span className="font-semibold text-sm text-quantized-silver">
-                          {component.name}
-                        </span>
-                      </div>
-                      <div className="space-y-1 text-xs text-quantized-silver/70">
-                        <div className="flex justify-between">
-                          <span>Temperature:</span>
-                          <span className={component.temperature! > 85 ? "text-amber" : ""}>
-                            {component.temperature}°C
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Vibration:</span>
-                          <span className={component.vibration! > 0.5 ? "text-amber" : ""}>
-                            {component.vibration} mm/s
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Status:</span>
-                          <span style={{ color: statusColor }}>
-                            {component.status.toUpperCase()}
-                          </span>
-                        </div>
-                      </div>
-                    </motion.div>
+            {/* Enhanced Environment with fog and atmosphere */}
+            <fog attach="fog" args={['#0f0f23', 10, 50]} />
+            
+            {/* Environment lighting */}
+            <Environment preset="night" background={false} environmentIntensity={0.3} />
 
-                    {/* Neural pathway to selected */}
-                    {isSelected && (
-                      <motion.svg
-                        className="absolute left-full top-1/2 w-32 h-1 overflow-visible"
-                        initial={{ pathLength: 0 }}
-                        animate={{ pathLength: 1 }}
-                        transition={{ duration: 0.5 }}
-                      >
-                        <motion.path
-                          d="M 0 0 L 128 0"
-                          stroke={statusColor}
-                          strokeWidth="2"
-                          fill="none"
-                          style={{ filter: `drop-shadow(0 0 4px ${statusColor})` }}
-                        />
-                      </motion.svg>
-                    )}
-                  </motion.div>
-                )
-              })}
+            {/* Controls */}
+            <OrbitControls 
+              autoRotate={false}
+              enableZoom={true}
+              enablePan={true}
+              minDistance={4}
+              maxDistance={15}
+              dampingFactor={0.05}
+              enableDamping
+            />
+          </Suspense>
+        </Canvas>
 
-              {/* Fusion overlay */}
-              {fusionOverlay && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 0.6 }}
-                  className="absolute inset-0 pointer-events-none"
-                >
-                  {fusionOverlay === "thermal" && (
-                    <div className="absolute inset-0 bg-gradient-to-b from-solar-orange/40 via-amber/30 to-transparent rounded-lg" />
-                  )}
-                  {fusionOverlay === "acoustic" && (
-                    <div className="absolute inset-0">
-                      {[...Array(5)].map((_, i) => (
-                        <motion.div
-                          key={i}
-                          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 border-2 border-magenta/40 rounded-full"
-                          style={{
-                            width: `${(i + 1) * 40}px`,
-                            height: `${(i + 1) * 40}px`,
-                          }}
-                          animate={{
-                            scale: [1, 1.2, 1],
-                            opacity: [0.5, 0, 0],
-                          }}
-                          transition={{
-                            duration: 2,
-                            repeat: Infinity,
-                            delay: i * 0.2,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </div>
-          </motion.div>
-        </motion.div>
+        {/* Scene corner accents with theme colors */}
+        <div className="absolute top-0 left-0 w-16 h-16 border-t-2 border-l-2 border-electric-cyan/40 rounded-tl-lg" />
+        <div className="absolute top-0 right-0 w-16 h-16 border-t-2 border-r-2 border-electric-cyan/40 rounded-tr-lg" />
+        <div className="absolute bottom-0 left-0 w-16 h-16 border-b-2 border-l-2 border-electric-cyan/40 rounded-bl-lg" />
+        <div className="absolute bottom-0 right-0 w-16 h-16 border-b-2 border-r-2 border-electric-cyan/40 rounded-br-lg" />
+
+        {/* Enhanced 3D Scene UI Overlays */}
+        <div className="absolute top-4 right-4 bg-void/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-electric-cyan/40 shadow-lg shadow-electric-cyan/20">
+          <div className="flex items-center gap-2 text-xs">
+            <div className="w-2 h-2 bg-electric-cyan rounded-full animate-pulse shadow-sm shadow-electric-cyan"></div>
+            <span className="text-electric-cyan font-medium">3D TWIN ACTIVE</span>
+          </div>
+        </div>
+        
+        {/* Enhanced Control instructions */}
+        <div className="absolute bottom-4 left-4 bg-void/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-electric-cyan/30 shadow-lg">
+          <div className="text-xs text-quantized-silver/80 space-y-1">
+            <div>MOUSE: Drag to rotate • SCROLL: Zoom in/out</div>
+            <div>CLICK: Select indicator for details</div>
+          </div>
+        </div>
       </div>
 
-      {/* Legend */}
+      {/* Health Status Legend */}
       <div className="mt-4 flex items-center justify-center gap-6 text-xs">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-electric-cyan glow-cyan" />
-          <span className="text-quantized-silver/70">Healthy</span>
+          <div className="w-4 h-4 rounded border-2 border-green-400 bg-green-500/20" />
+          <span className="text-quantized-silver/70">HEALTHY</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-amber glow-amber" />
-          <span className="text-quantized-silver/70">Warning</span>
+          <div className="w-4 h-4 rounded border-2 border-yellow-400 bg-yellow-500/20" />
+          <span className="text-quantized-silver/70">WARNING</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-crimson" />
-          <span className="text-quantized-silver/70">Critical</span>
+          <div className="w-4 h-4 rounded border-2 border-red-400 bg-red-500/20" />
+          <span className="text-quantized-silver/70">CRITICAL</span>
         </div>
       </div>
 
-      {/* Interaction hint */}
+      {/* System Status Footer */}
       <div className="absolute bottom-4 left-6 text-xs text-quantized-silver/40">
-        Click & drag to rotate • Click components for details
+        AURA DIGITAL TWIN SYSTEM • CSV-BASED DIAGNOSTICS • ASSET: {transformerId}
       </div>
     </div>
   )

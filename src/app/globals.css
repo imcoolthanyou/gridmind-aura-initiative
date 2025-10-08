@@ -17,6 +17,8 @@
   --color-quantized-silver: #E2E8F0;
   --color-amber: #FFBF00;
   --color-crimson: #DC2626;
+  --color-deep-space-cobalt: #1e40af;
+  --color-emerald: #10b981;
   
   --color-background: var(--void);
   --color-foreground: var(--quantized-silver);
@@ -50,6 +52,8 @@
   --quantized-silver: #E2E8F0;
   --amber: #FFBF00;
   --crimson: #DC2626;
+  --deep-space-cobalt: #1e40af;
+  --emerald: #10b981;
 }
 
 @layer base {
@@ -64,7 +68,7 @@
     color: var(--color-quantized-silver);
     font-family: var(--font-mono);
     overflow-x: hidden;
-    cursor: none;
+    cursor: auto;
   }
   
   h1, h2, h3, h4, h5, h6 {

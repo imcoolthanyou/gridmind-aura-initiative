@@ -18,16 +18,16 @@ interface ModelProps {
 // Safe model loader component
 function ModelLoader({ modelPath }: ModelProps) {
   const groupRef = useRef<Group>(null)
-  const [error, setError] = useState<string | null>(null)
   
   // Always call useGLTF at the top level
   let modelData: any = null
+  let hasError = false
   
   try {
     modelData = useGLTF(modelPath)
   } catch (err) {
     console.error('Error loading model:', err)
-    setError(err instanceof Error ? err.message : 'Failed to load model')
+    hasError = true
   }
   
   // Animation hook - always called
@@ -48,7 +48,7 @@ function ModelLoader({ modelPath }: ModelProps) {
   }, [modelData, modelPath])
   
   // Return fallback if error or no model
-  if (error || !modelData?.scene) {
+  if (hasError || !modelData?.scene) {
     return <FallbackModel />
   }
   

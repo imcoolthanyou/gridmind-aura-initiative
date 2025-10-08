@@ -17,6 +17,15 @@ interface Sensor {
 
 interface LiveSensorStreamsProps {
   onSensorClick: (sensorId: string) => void
+  staticData?: {
+    [key: string]: {
+      value: number
+      unit: string
+      status: string
+      type: string
+    }
+  }
+  assetName?: string
 }
 
 const initialSensors: Sensor[] = [
@@ -72,28 +81,78 @@ const initialSensors: Sensor[] = [
   },
 ]
 
-export default function LiveSensorStreams({ onSensorClick }: LiveSensorStreamsProps) {
-  const [sensors, setSensors] = useState<Sensor[]>(initialSensors)
-
-  // Simulate real-time data updates
+export default function LiveSensorStreams({ onSensorClick, staticData, assetName }: LiveSensorStreamsProps) {
+  // Check for current asset data from localStorage
+  const getCurrentAssetData = () => {
+    try {
+      const stored = localStorage.getItem('current-asset-data')
+      return stored ? JSON.parse(stored) : null
+    } catch {
+      return null
+    }
+  }
+  
+  // Generate static trend data based on current value
+  const generateStaticTrend = (baseValue: number) => {
+    return Array.from({ length: 9 }, (_, i) => {
+      // Create a realistic historical trend ending at the current value
+      const variation = baseValue * 0.05 // 5% max variation
+      const trend = baseValue - variation + (variation * 2 * i / 8)
+      return parseFloat(trend.toFixed(2))
+    })
+  }
+  
+  // Initialize sensors with static data
+  const [sensors, setSensors] = useState<Sensor[]>(() => {
+    const assetData = getCurrentAssetData()
+    const dataSource = staticData || (assetData?.data?.sensors)
+    
+    if (dataSource) {
+      return Object.entries(dataSource).map(([id, sensorData], index) => {
+        const data = sensorData as { value: number; unit: string; status: string; type: string }
+        return {
+          id,
+          name: `Source-${String(index + 1).padStart(3, '0')}: ${data.type.split(' ')[0]}`,
+          type: data.type,
+          status: data.status as "active" | "anomaly" | "offline",
+          value: data.value,
+          unit: data.unit,
+          trend: generateStaticTrend(data.value),
+          lastUpdate: "CSV data"
+        }
+      })
+    }
+    return initialSensors
+  })
+  
+  // Only listen for asset changes, no random updates
   useEffect(() => {
-    const interval = setInterval(() => {
-      setSensors((prev) =>
-        prev.map((sensor) => {
-          const newValue = sensor.value + (Math.random() - 0.5) * 2
-          const newTrend = [...sensor.trend.slice(1), newValue]
+    const handleStorageChange = () => {
+      const assetData = getCurrentAssetData()
+      if (assetData?.data?.sensors) {
+        const newSensors = Object.entries(assetData.data.sensors).map(([id, sensorData], index) => {
+          const data = sensorData as { value: number; unit: string; status: string; type: string }
           return {
-            ...sensor,
-            value: parseFloat(newValue.toFixed(2)),
-            trend: newTrend,
-            lastUpdate: "just now",
+            id,
+            name: `Source-${String(index + 1).padStart(3, '0')}: ${data.type.split(' ')[0]}`,
+            type: data.type,
+            status: data.status as "active" | "anomaly" | "offline",
+            value: data.value,
+            unit: data.unit,
+            trend: generateStaticTrend(data.value),
+            lastUpdate: "CSV data"
           }
         })
-      )
-    }, 3000)
-
+        setSensors(newSensors)
+      }
+    }
+    
+    // Check for changes periodically but don't update values randomly
+    const interval = setInterval(handleStorageChange, 1000)
     return () => clearInterval(interval)
   }, [])
+
+  // REMOVED: No more random updates - data stays static!
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -113,10 +172,10 @@ export default function LiveSensorStreams({ onSensorClick }: LiveSensorStreamsPr
       <div className="flex items-center justify-between mb-6">
         <div>
           <h2 className="text-xl font-bold text-quantized-silver font-sans mb-1">
-            Live Sensor Streams
+            Static Sensor Data
           </h2>
           <p className="text-sm text-quantized-silver/60">
-            Real-time multi-modal data ingestion
+            CSV-based sensor readings - No live updates
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-electric-cyan/10 border border-electric-cyan/30">
@@ -166,7 +225,7 @@ export default function LiveSensorStreams({ onSensorClick }: LiveSensorStreamsPr
                     </span>
                   </div>
                   <div className="text-xs text-quantized-silver/50">
-                    {sensor.lastUpdate}
+                    CSV data
                   </div>
                 </div>
               </div>
