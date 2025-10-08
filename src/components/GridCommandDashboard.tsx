@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion"
 import { X, ArrowRight, AlertTriangle, Activity, Zap, MapPin, RotateCcw, Map } from "lucide-react"
 import dynamic from "next/dynamic"
 import StaticMapFallback from "./StaticMapFallback"
+import { gridNodes, powerLines, GridNode, PowerLine } from "@/lib/transformerData"
 
 // Three-tier map loading strategy
 type MapMode = 'interactive' | 'static' | 'reload'
@@ -24,138 +25,6 @@ const LeafletMap = dynamic(
     )
   }
 )
-
-interface GridNode {
-  id: string
-  name: string
-  type: "transformer" | "substation" | "generator"
-  position: { lat: number; lng: number }
-  status: "healthy" | "warning" | "critical" | "failed"
-  healthScore: number
-  connections: string[]
-  voltage: number
-  load: number
-  temperature: number
-}
-
-interface PowerLine {
-  id: string
-  from: string
-  to: string
-  status: "normal" | "overload" | "failed"
-  capacity: number
-  currentLoad: number
-}
-
-// Sample grid data for Khandwa region with real coordinates
-const gridNodes: GridNode[] = [
-  {
-    id: "KHD-SUB-001",
-    name: "Khandwa Main Substation",
-    type: "substation",
-    position: { lat: 21.8270, lng: 76.3504 }, // Khandwa center
-    status: "healthy",
-    healthScore: 92,
-    connections: ["KHD-T-001", "KHD-T-002", "KHD-SUB-002"],
-    voltage: 132000,
-    load: 85,
-    temperature: 42
-  },
-  {
-    id: "KHD-T-001",
-    name: "Industrial Zone Transformer",
-    type: "transformer",
-    position: { lat: 21.8350, lng: 76.3420 }, // Industrial area
-    status: "warning",
-    healthScore: 68,
-    connections: ["KHD-SUB-001", "KHD-T-003"],
-    voltage: 33000,
-    load: 92,
-    temperature: 87
-  },
-  {
-    id: "KHD-T-002",
-    name: "Residential North Transformer",
-    type: "transformer",
-    position: { lat: 21.8400, lng: 76.3580 }, // North residential
-    status: "critical",
-    healthScore: 34,
-    connections: ["KHD-SUB-001", "KHD-T-004"],
-    voltage: 11000,
-    load: 98,
-    temperature: 124
-  },
-  {
-    id: "KHD-SUB-002",
-    name: "East District Substation",
-    type: "substation",
-    position: { lat: 21.8200, lng: 76.3650 }, // East district
-    status: "healthy",
-    healthScore: 88,
-    connections: ["KHD-SUB-001", "KHD-T-005"],
-    voltage: 66000,
-    load: 73,
-    temperature: 45
-  },
-  {
-    id: "KHD-T-003",
-    name: "Commercial Hub Transformer",
-    type: "transformer",
-    position: { lat: 21.8150, lng: 76.3380 }, // Commercial area
-    status: "healthy",
-    healthScore: 94,
-    connections: ["KHD-T-001", "KHD-T-006"],
-    voltage: 11000,
-    load: 67,
-    temperature: 38
-  },
-  {
-    id: "KHD-T-004",
-    name: "Narmada Bank Transformer",
-    type: "transformer",
-    position: { lat: 21.8450, lng: 76.3700 }, // Near Narmada
-    status: "warning",
-    healthScore: 71,
-    connections: ["KHD-T-002"],
-    voltage: 11000,
-    load: 89,
-    temperature: 78
-  },
-  {
-    id: "KHD-T-005",
-    name: "Agricultural Feeder",
-    type: "transformer",
-    position: { lat: 21.8100, lng: 76.3720 }, // Agricultural area
-    status: "healthy",
-    healthScore: 91,
-    connections: ["KHD-SUB-002"],
-    voltage: 11000,
-    load: 54,
-    temperature: 41
-  },
-  {
-    id: "KHD-T-006",
-    name: "Railway Station Transformer",
-    type: "transformer",
-    position: { lat: 21.8050, lng: 76.3300 }, // Railway station area
-    status: "healthy",
-    healthScore: 89,
-    connections: ["KHD-T-003"],
-    voltage: 11000,
-    load: 76,
-    temperature: 43
-  }
-]
-
-const powerLines: PowerLine[] = [
-  { id: "L1", from: "KHD-SUB-001", to: "KHD-T-001", status: "normal", capacity: 100, currentLoad: 85 },
-  { id: "L2", from: "KHD-SUB-001", to: "KHD-T-002", status: "overload", capacity: 100, currentLoad: 98 },
-  { id: "L3", from: "KHD-SUB-001", to: "KHD-SUB-002", status: "normal", capacity: 200, currentLoad: 145 },
-  { id: "L4", from: "KHD-T-001", to: "KHD-T-003", status: "normal", capacity: 50, currentLoad: 34 },
-  { id: "L5", from: "KHD-T-002", to: "KHD-T-004", status: "overload", capacity: 50, currentLoad: 49 },
-  { id: "L6", from: "KHD-SUB-002", to: "KHD-T-005", status: "normal", capacity: 75, currentLoad: 41 },
-  { id: "L7", from: "KHD-T-003", to: "KHD-T-006", status: "normal", capacity: 40, currentLoad: 28 }
-]
 
 export default function GridCommandDashboard() {
   const [selectedNode, setSelectedNode] = useState<GridNode | null>(null)
@@ -209,6 +78,45 @@ export default function GridCommandDashboard() {
     return "#00FFFF"
   }
 
+  // Convert GridNode to LeafletMapComponent compatible format
+  const handleNodeSelect = (node: GridNode) => {
+    // Create a compatible node without region property for the map component
+    const compatibleNode = {
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      position: node.position,
+      status: node.status,
+      healthScore: node.healthScore,
+      connections: node.connections,
+      voltage: node.voltage,
+      load: node.load,
+      temperature: node.temperature
+    }
+    setSelectedNode(compatibleNode as any)
+  }
+  
+  const handleNodeHover = (node: GridNode | null) => {
+    if (!node) {
+      setHoveredNode(null)
+      return
+    }
+    // Create a compatible node without region property for the map component
+    const compatibleNode = {
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      position: node.position,
+      status: node.status,
+      healthScore: node.healthScore,
+      connections: node.connections,
+      voltage: node.voltage,
+      load: node.load,
+      temperature: node.temperature
+    }
+    setHoveredNode(compatibleNode as any)
+  }
+  
   // Props to pass to map components
   const mapProps = {
     gridNodes,
@@ -219,8 +127,8 @@ export default function GridCommandDashboard() {
     failedLines,
     getNodeColor,
     getLineColor,
-    onNodeSelect: setSelectedNode,
-    onNodeHover: setHoveredNode
+    onNodeSelect: handleNodeSelect,
+    onNodeHover: handleNodeHover
   }
 
   const simulateCascadingFailure = useCallback(async (sourceNode: GridNode) => {
@@ -316,18 +224,7 @@ export default function GridCommandDashboard() {
       case 'interactive':
         return (
           <LeafletMap
-            key={mapKey}
-            gridNodes={gridNodes}
-            powerLines={powerLines}
-            mapTheme={mapTheme}
-            mapThemes={mapThemes}
-            failedNodes={failedNodes}
-            failedLines={failedLines}
-            getNodeColor={getNodeColor}
-            getLineColor={getLineColor}
-            onNodeSelect={setSelectedNode}
-            onNodeHover={setHoveredNode}
-            onError={handleMapError}
+            {...mapProps}
           />
         )
       case 'static':

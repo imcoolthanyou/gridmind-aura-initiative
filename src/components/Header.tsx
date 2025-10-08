@@ -11,10 +11,10 @@ export default function Header() {
   const navItems = [
     { name: "Overview", path: "/" },
     { name: "Data Ingestion", path: "/data-ingestion" },
+    { name: "AURA Analysis", path: "/aura-analysis" },
     { name: "Diagnostics", path: "/diagnostics" },
     { name: "Grid Command", path: "/grid-command" },
     { name: "Training", path: "/training" },
-    { name: "AR Experience", path: "/ar" },
     { name: "Technology", path: "/technology" },
   ]
 

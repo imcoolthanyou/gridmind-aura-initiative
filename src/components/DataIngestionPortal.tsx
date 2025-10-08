@@ -5,6 +5,7 @@ import { useState, useCallback } from "react"
 import { Upload, MapPin, Zap, CheckCircle2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import NeuralBackground from "./NeuralBackground"
+import { getAllTransformers, addNewTransformer, updateTransformerFromIngestion, GridNode } from "@/lib/transformerData"
 
 interface Asset {
   id: string
@@ -14,43 +15,17 @@ interface Asset {
   position: { x: number; y: number }
 }
 
-const bhopalAssets: Asset[] = [
-  {
-    id: "TX-47B",
-    name: "Transformer TX-47B",
-    location: "Bhopal North Grid Station",
-    status: "warning",
-    position: { x: 45, y: 35 }
-  },
-  {
-    id: "TX-52A",
-    name: "Transformer TX-52A", 
-    location: "Bhopal Central Grid Station",
-    status: "healthy",
-    position: { x: 55, y: 50 }
-  },
-  {
-    id: "TX-63C",
-    name: "Transformer TX-63C",
-    location: "Bhopal South Grid Station", 
-    status: "critical",
-    position: { x: 40, y: 65 }
-  },
-  {
-    id: "TX-71D",
-    name: "Transformer TX-71D",
-    location: "Bhopal East Grid Station",
-    status: "healthy", 
-    position: { x: 70, y: 45 }
-  },
-  {
-    id: "TX-85F",
-    name: "Transformer TX-85F",
-    location: "Bhopal West Grid Station",
-    status: "warning", 
-    position: { x: 25, y: 55 }
+// Get transformer assets from shared data
+const bhopalAssets: Asset[] = getAllTransformers().map(transformer => ({
+  id: transformer.id,
+  name: transformer.name,
+  location: `${transformer.region === 'bhopal' ? 'Bhopal' : 'Khandwa'} Grid Station`,
+  status: transformer.status as "healthy" | "warning" | "critical",
+  position: { 
+    x: transformer.region === 'bhopal' ? 50 + (Math.random() - 0.5) * 40 : 30 + (Math.random() - 0.5) * 20, 
+    y: transformer.region === 'bhopal' ? 50 + (Math.random() - 0.5) * 40 : 50 + (Math.random() - 0.5) * 20
   }
-]
+}))
 
 export default function DataIngestionPortal() {
   const router = useRouter()
@@ -62,6 +37,8 @@ export default function DataIngestionPortal() {
   const [isUploading, setIsUploading] = useState(false)
   const [transformerOption, setTransformerOption] = useState<'existing' | 'new'>('new')
   const [newTransformerName, setNewTransformerName] = useState("")
+  const [newTransformerLocation, setNewTransformerLocation] = useState<{lat: number, lng: number} | null>(null)
+  const [newTransformerRegion, setNewTransformerRegion] = useState<'khandwa' | 'bhopal'>('bhopal')
   const [selectedExistingTransformer, setSelectedExistingTransformer] = useState<Asset | null>(null)
 
   const getStatusColor = (status: string) => {
@@ -71,6 +48,29 @@ export default function DataIngestionPortal() {
       case "critical": return "var(--crimson)"
       default: return "var(--quantized-silver)"
     }
+  }
+
+  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (transformerOption !== 'new' || !uploadedFile) return
+    
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * 100
+    const y = ((e.clientY - rect.top) / rect.height) * 100
+    
+    // Convert percentage to lat/lng based on region
+    let lat: number, lng: number
+    
+    if (newTransformerRegion === 'bhopal') {
+      // Bhopal region bounds: lat 23.1-23.4, lng 77.2-77.6
+      lat = 23.1 + (y / 100) * 0.3
+      lng = 77.2 + (x / 100) * 0.4
+    } else {
+      // Khandwa region bounds: lat 21.7-21.9, lng 76.2-76.5
+      lat = 21.7 + (y / 100) * 0.2
+      lng = 76.2 + (x / 100) * 0.3
+    }
+    
+    setNewTransformerLocation({ lat, lng })
   }
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -304,10 +304,18 @@ export default function DataIngestionPortal() {
                 <div className="absolute inset-0 bg-gradient-to-br from-electric-cyan/5 to-magenta/5" />
                 
                 {/* Map Background */}
-                <div className="relative w-full h-full">
+                <div 
+                  className="relative w-full h-full cursor-crosshair"
+                  onClick={handleMapClick}
+                >
                   <div className="absolute inset-0 border border-electric-cyan/20 rounded-lg">
                     <div className="absolute top-4 left-4 text-xs text-quantized-silver/60">
-                      BHOPAL GRID NETWORK
+                      {newTransformerRegion.toUpperCase()} GRID NETWORK
+                      {transformerOption === 'new' && uploadedFile && (
+                        <div className="text-electric-cyan text-xs mt-1">
+                          Click to place new transformer
+                        </div>
+                      )}
                     </div>
                     
                     {/* Grid Lines */}
@@ -325,7 +333,9 @@ export default function DataIngestionPortal() {
                     ))}
                     
                     {/* Asset Nodes */}
-                    {bhopalAssets.map((asset) => (
+                    {bhopalAssets
+                      .filter(asset => asset.location.toLowerCase().includes(newTransformerRegion))
+                      .map((asset) => (
                       <motion.button
                         key={asset.id}
                         className="absolute transform -translate-x-1/2 -translate-y-1/2"
@@ -333,7 +343,10 @@ export default function DataIngestionPortal() {
                           left: `${asset.position.x}%`, 
                           top: `${asset.position.y}%` 
                         }}
-                        onClick={() => setSelectedAsset(asset)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedAsset(asset)
+                        }}
                         whileHover={{ scale: 1.2 }}
                         whileTap={{ scale: 0.9 }}
                       >
@@ -362,6 +375,27 @@ export default function DataIngestionPortal() {
                         </div>
                       </motion.button>
                     ))}
+                    
+                    {/* New Transformer Location Marker */}
+                    {newTransformerLocation && transformerOption === 'new' && (
+                      <motion.div
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+                        style={{
+                          left: `${((newTransformerLocation.lng - (newTransformerRegion === 'bhopal' ? 77.2 : 76.2)) / (newTransformerRegion === 'bhopal' ? 0.4 : 0.3)) * 100}%`,
+                          top: `${((newTransformerLocation.lat - (newTransformerRegion === 'bhopal' ? 23.1 : 21.7)) / (newTransformerRegion === 'bhopal' ? 0.3 : 0.2)) * 100}%`
+                        }}
+                      >
+                        <div className="relative">
+                          <div className="w-6 h-6 rounded-full bg-electric-cyan border-2 border-white shadow-lg shadow-electric-cyan/50" />
+                          <div className="absolute inset-0 rounded-full animate-ping bg-electric-cyan opacity-30" />
+                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs text-electric-cyan font-semibold whitespace-nowrap">
+                            New Location
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -521,17 +555,67 @@ export default function DataIngestionPortal() {
                     
                     {/* New Transformer Name Input */}
                     {transformerOption === 'new' && (
-                      <div>
-                        <label className="block text-sm font-semibold text-quantized-silver/80 mb-2">
-                          New Transformer Name
-                        </label>
-                        <input
-                          type="text"
-                          value={newTransformerName}
-                          onChange={(e) => setNewTransformerName(e.target.value)}
-                          placeholder="e.g., TX-NewUnit or My Custom Transformer"
-                          className="w-full px-4 py-3 rounded-lg glass-panel-bright border border-electric-cyan/30 text-quantized-silver placeholder-quantized-silver/50 focus:border-electric-cyan focus:ring-2 focus:ring-electric-cyan/20 transition-all"
-                        />
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-quantized-silver/80 mb-2">
+                            New Transformer Name
+                          </label>
+                          <input
+                            type="text"
+                            value={newTransformerName}
+                            onChange={(e) => setNewTransformerName(e.target.value)}
+                            placeholder="e.g., TX-NewUnit or My Custom Transformer"
+                            className="w-full px-4 py-3 rounded-lg glass-panel-bright border border-electric-cyan/30 text-quantized-silver placeholder-quantized-silver/50 focus:border-electric-cyan focus:ring-2 focus:ring-electric-cyan/20 transition-all"
+                          />
+                        </div>
+                        
+                        {/* Region Selection */}
+                        <div>
+                          <label className="block text-sm font-semibold text-quantized-silver/80 mb-2">
+                            Select Region
+                          </label>
+                          <select
+                            value={newTransformerRegion}
+                            onChange={(e) => {
+                              setNewTransformerRegion(e.target.value as 'khandwa' | 'bhopal')
+                              setNewTransformerLocation(null) // Reset location when region changes
+                            }}
+                            className="w-full px-4 py-3 rounded-lg glass-panel-bright border border-electric-cyan/30 text-quantized-silver focus:border-electric-cyan focus:ring-2 focus:ring-electric-cyan/20 transition-all"
+                          >
+                            <option value="bhopal">Bhopal Region</option>
+                            <option value="khandwa">Khandwa Region</option>
+                          </select>
+                        </div>
+                        
+                        {/* Location Selection */}
+                        <div>
+                          <label className="block text-sm font-semibold text-quantized-silver/80 mb-2">
+                            Choose Location on Map
+                          </label>
+                          <div className="p-4 border border-electric-cyan/30 rounded-lg glass-panel-bright">
+                            <div className="text-xs text-quantized-silver/70 mb-2">
+                              Click on the map to select transformer location
+                            </div>
+                            {newTransformerLocation ? (
+                              <div className="flex items-center gap-2 text-sm text-electric-cyan">
+                                <MapPin className="w-4 h-4" />
+                                <span>
+                                  Location: {newTransformerLocation.lat.toFixed(4)}, {newTransformerLocation.lng.toFixed(4)}
+                                </span>
+                                <button
+                                  onClick={() => setNewTransformerLocation(null)}
+                                  className="ml-2 text-xs text-crimson hover:text-crimson/80"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="text-xs text-amber">
+                                No location selected - click on the map in the left panel
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     )}
                     

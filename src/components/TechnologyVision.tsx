@@ -322,7 +322,7 @@ export default function TechnologyVision() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {[
                 {
-                  phase: "Phase 1: Q2 2024",
+                  phase: "Phase 1: Q2 2025",
                   title: "Edge AI Deployment",
                   items: [
                     "On-device inference",
@@ -331,7 +331,7 @@ export default function TechnologyVision() {
                   ],
                 },
                 {
-                  phase: "Phase 2: Q4 2024",
+                  phase: "Phase 2: Q4 2025",
                   title: "Autonomous Operations",
                   items: [
                     "Self-healing grid protocols",
@@ -340,7 +340,7 @@ export default function TechnologyVision() {
                   ],
                 },
                 {
-                  phase: "Phase 3: 2025",
+                  phase: "Phase 3: 2026",
                   title: "Ecosystem Integration",
                   items: [
                     "Smart city integration",
