@@ -125,11 +125,11 @@ function FeatureCard({
               className="drop-shadow-[0_0_8px_var(--electric-cyan)]"
             />
             <motion.circle
-              cx="0"
               cy="1"
               r="3"
               fill={`var(--${feature.color})`}
-              style={{ cx: useTransform(pathLength, [0, 1], [0, 80]) }}
+              animate={{ cx: [0, 80, 0] }}
+              transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
               className="drop-shadow-[0_0_12px_var(--electric-cyan)]"
             />
           </svg>

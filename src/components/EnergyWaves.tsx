@@ -29,12 +29,12 @@ export default function EnergyWaves() {
       opacity: number
       yOffset: number
 
-      constructor(index: number) {
+      constructor(index: number, canvasHeight: number) {
         this.phase = Math.random() * Math.PI * 2
         this.amplitude = 80 + Math.random() * 40
         this.frequency = 0.002 + Math.random() * 0.001
         this.speed = 0.02 + Math.random() * 0.02
-        this.yOffset = (canvas.height / 6) * (index + 1)
+        this.yOffset = (canvasHeight / 6) * (index + 1)
         this.opacity = 0.15 + Math.random() * 0.15
         
         const colors = [
@@ -46,11 +46,11 @@ export default function EnergyWaves() {
         this.color = colors[index % colors.length]
       }
 
-      draw(ctx: CanvasRenderingContext2D, time: number) {
+      draw(ctx: CanvasRenderingContext2D, time: number, canvasWidth: number) {
         ctx.beginPath()
         ctx.moveTo(0, this.yOffset)
 
-        for (let x = 0; x < canvas.width; x += 2) {
+        for (let x = 0; x < canvasWidth; x += 2) {
           const y = 
             this.yOffset +
             Math.sin(x * this.frequency + time * this.speed + this.phase) *
@@ -89,11 +89,11 @@ export default function EnergyWaves() {
       color: string
       pairIndex: number
 
-      constructor(startAngle: number, pairIndex: number) {
+      constructor(startAngle: number, pairIndex: number, canvasHeight: number) {
         this.angle = startAngle
         this.radius = 150
         this.speed = 0.01
-        this.y = canvas.height / 2
+        this.y = canvasHeight / 2
         this.size = 4
         this.pairIndex = pairIndex
         this.color = pairIndex % 2 === 0 ? "0, 255, 255" : "255, 0, 255"
@@ -103,8 +103,8 @@ export default function EnergyWaves() {
         this.angle += this.speed
       }
 
-      draw(ctx: CanvasRenderingContext2D) {
-        const x = canvas.width / 2 + Math.cos(this.angle) * this.radius
+      draw(ctx: CanvasRenderingContext2D, canvasWidth: number) {
+        const x = canvasWidth / 2 + Math.cos(this.angle) * this.radius
         const z = Math.sin(this.angle) * this.radius
         const scale = (z + this.radius) / (this.radius * 2)
         const size = this.size * scale
@@ -126,20 +126,20 @@ export default function EnergyWaves() {
         ctx.fill()
       }
 
-      getPairPosition(canvas: HTMLCanvasElement): { x: number; y: number } {
-        const x = canvas.width / 2 + Math.cos(this.angle + Math.PI) * this.radius
+      getPairPosition(canvasWidth: number): { x: number; y: number } {
+        const x = canvasWidth / 2 + Math.cos(this.angle + Math.PI) * this.radius
         return { x, y: this.y }
       }
     }
 
     const waves: Wave[] = []
     for (let i = 0; i < 8; i++) {
-      waves.push(new Wave(i))
+      waves.push(new Wave(i, canvas.height))
     }
 
     const helixParticles: HelixParticle[] = []
     for (let i = 0; i < 20; i++) {
-      helixParticles.push(new HelixParticle((i / 20) * Math.PI * 2, i))
+      helixParticles.push(new HelixParticle((i / 20) * Math.PI * 2, i, canvas.height))
     }
 
     let time = 0
@@ -148,7 +148,7 @@ export default function EnergyWaves() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       // Draw waves
-      waves.forEach((wave) => wave.draw(ctx, time))
+      waves.forEach((wave) => wave.draw(ctx, time, canvas.width))
 
       // Draw helix connections
       helixParticles.forEach((particle, i) => {
@@ -176,7 +176,7 @@ export default function EnergyWaves() {
       // Update and draw helix particles
       helixParticles.forEach((particle) => {
         particle.update()
-        particle.draw(ctx)
+        particle.draw(ctx, canvas.width)
       })
 
       animationFrame = requestAnimationFrame(animate)

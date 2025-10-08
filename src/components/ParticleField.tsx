@@ -46,9 +46,9 @@ export default function ParticleField() {
       targetZ: number
       isForming: boolean
 
-      constructor() {
-        this.x = Math.random() * canvas.width - canvas.width / 2
-        this.y = Math.random() * canvas.height - canvas.height / 2
+      constructor(canvasWidth: number, canvasHeight: number) {
+        this.x = Math.random() * canvasWidth - canvasWidth / 2
+        this.y = Math.random() * canvasHeight - canvasHeight / 2
         this.z = Math.random() * 1000
         this.baseX = this.x
         this.baseY = this.y
@@ -63,7 +63,7 @@ export default function ParticleField() {
         this.isForming = false
       }
 
-      update(scrollProgress: number) {
+      update(scrollProgress: number, canvasWidth: number, canvasHeight: number) {
         if (scrollProgress > 0.1 && scrollProgress < 0.4) {
           // Form transformer shape
           this.isForming = true
@@ -87,8 +87,8 @@ export default function ParticleField() {
           this.z += this.vz
 
           // Wrap around edges
-          const halfWidth = canvas.width / 2
-          const halfHeight = canvas.height / 2
+          const halfWidth = canvasWidth / 2
+          const halfHeight = canvasHeight / 2
           if (this.x > halfWidth) this.x = -halfWidth
           if (this.x < -halfWidth) this.x = halfWidth
           if (this.y > halfHeight) this.y = -halfHeight
@@ -96,11 +96,11 @@ export default function ParticleField() {
         }
       }
 
-      draw(ctx: CanvasRenderingContext2D) {
+      draw(ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number) {
         const perspective = 600
         const scale = perspective / (perspective + this.z)
-        const x2d = this.x * scale + canvas.width / 2
-        const y2d = this.y * scale + canvas.height / 2
+        const x2d = this.x * scale + canvasWidth / 2
+        const y2d = this.y * scale + canvasHeight / 2
         const size = this.size * scale
 
         // Glow effect
@@ -134,7 +134,7 @@ export default function ParticleField() {
     const particles: Particle[] = []
     const particleCount = 500
     for (let i = 0; i < particleCount; i++) {
-      particles.push(new Particle())
+      particles.push(new Particle(canvas.width, canvas.height))
     }
 
     // Animation loop
@@ -171,8 +171,8 @@ export default function ParticleField() {
       }
 
       particles.forEach((particle) => {
-        particle.update(scrollProgress)
-        particle.draw(ctx)
+        particle.update(scrollProgress, canvas.width, canvas.height)
+        particle.draw(ctx, canvas.width, canvas.height)
       })
 
       animationFrame = requestAnimationFrame(animate)

@@ -483,7 +483,7 @@ export default function TrainingTransformerModel3D({
               component={component}
               isSelected={selectedComponent === component.id}
               onSelect={() => onComponentSelect(component.id)}
-              isCompleted={isCompleted || isDetected}
+              isCompleted={!!(isCompleted || isDetected)}
               showHint={showHints}
             />
           )

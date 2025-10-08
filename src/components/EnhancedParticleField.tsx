@@ -61,9 +61,9 @@ const EnhancedParticleField = () => {
       orbitAngle: number
       orbitSpeed: number
 
-      constructor() {
-        this.x = Math.random() * canvas.width - canvas.width / 2
-        this.y = Math.random() * canvas.height - canvas.height / 2
+      constructor(canvasWidth: number, canvasHeight: number) {
+        this.x = Math.random() * canvasWidth - canvasWidth / 2
+        this.y = Math.random() * canvasHeight - canvasHeight / 2
         this.z = Math.random() * 1000
         this.baseX = this.x
         this.baseY = this.y
@@ -83,10 +83,10 @@ const EnhancedParticleField = () => {
         this.color = colors[Math.floor(Math.random() * colors.length)]
       }
 
-      update(scrollProgress: number, mouseX: number, mouseY: number) {
+      update(scrollProgress: number, mouseX: number, mouseY: number, canvasWidth: number, canvasHeight: number) {
         // Mouse interaction
-        const dx = this.x - (mouseX - canvas.width / 2)
-        const dy = this.y - (mouseY - canvas.height / 2)
+        const dx = this.x - (mouseX - canvasWidth / 2)
+        const dy = this.y - (mouseY - canvasHeight / 2)
         const distance = Math.sqrt(dx * dx + dy * dy)
         const maxDistance = 200
 
@@ -122,8 +122,8 @@ const EnhancedParticleField = () => {
           this.vx *= 0.99
           this.vy *= 0.99
 
-          const halfWidth = canvas.width / 2
-          const halfHeight = canvas.height / 2
+          const halfWidth = canvasWidth / 2
+          const halfHeight = canvasHeight / 2
           if (this.x > halfWidth) this.x = -halfWidth
           if (this.x < -halfWidth) this.x = halfWidth
           if (this.y > halfHeight) this.y = -halfHeight
@@ -131,11 +131,11 @@ const EnhancedParticleField = () => {
         }
       }
 
-      draw(ctx: CanvasRenderingContext2D, time: number) {
+      draw(ctx: CanvasRenderingContext2D, time: number, canvasWidth: number, canvasHeight: number) {
         const perspective = 600
         const scale = perspective / (perspective + this.z)
-        const x2d = this.x * scale + canvas.width / 2
-        const y2d = this.y * scale + canvas.height / 2
+        const x2d = this.x * scale + canvasWidth / 2
+        const y2d = this.y * scale + canvasHeight / 2
         const size = this.size * scale
 
         if (size < 0) return; // Don't draw if behind camera
@@ -166,7 +166,7 @@ const EnhancedParticleField = () => {
     const particles: Particle[] = []
     const particleCount = 200
     for (let i = 0; i < particleCount; i++) {
-      particles.push(new Particle())
+      particles.push(new Particle(canvas.width, canvas.height))
     }
 
     let scrollProgress = 0
@@ -211,8 +211,8 @@ const EnhancedParticleField = () => {
       } */
 
       particles.forEach((particle) => {
-        particle.update(scrollProgress, currentMouseX, currentMouseY)
-        particle.draw(ctx, time)
+        particle.update(scrollProgress, currentMouseX, currentMouseY, canvas.width, canvas.height)
+        particle.draw(ctx, time, canvas.width, canvas.height)
       })
 
       animationFrame = requestAnimationFrame(animate)

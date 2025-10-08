@@ -333,14 +333,8 @@ export default function GridCommandDashboard() {
       case 'static':
         return (
           <StaticMapFallback
-            gridNodes={gridNodes}
-            powerLines={powerLines}
-            failedNodes={failedNodes}
-            failedLines={failedLines}
+            nodes={gridNodes}
             onNodeSelect={setSelectedNode}
-            onNodeHover={setHoveredNode}
-            getNodeColor={getNodeColor}
-            getLineColor={getLineColor}
           />
         )
       default:

@@ -27,23 +27,23 @@ export default function NeuralBackground() {
       vy: number
       connections: Node[]
 
-      constructor() {
-        this.x = Math.random() * canvas.width
-        this.y = Math.random() * canvas.height
+      constructor(canvasWidth: number, canvasHeight: number) {
+        this.x = Math.random() * canvasWidth
+        this.y = Math.random() * canvasHeight
         this.vx = (Math.random() - 0.5) * 0.3
         this.vy = (Math.random() - 0.5) * 0.3
         this.connections = []
       }
 
-      update() {
+      update(canvasWidth: number, canvasHeight: number) {
         this.x += this.vx
         this.y += this.vy
 
-        if (this.x < 0 || this.x > canvas.width) this.vx *= -1
-        if (this.y < 0 || this.y > canvas.height) this.vy *= -1
+        if (this.x < 0 || this.x > canvasWidth) this.vx *= -1
+        if (this.y < 0 || this.y > canvasHeight) this.vy *= -1
       }
 
-      draw() {
+      draw(ctx: CanvasRenderingContext2D) {
         // Draw node
         ctx.beginPath()
         ctx.arc(this.x, this.y, 2, 0, Math.PI * 2)
@@ -73,7 +73,7 @@ export default function NeuralBackground() {
     const nodes: Node[] = []
     const nodeCount = 50
     for (let i = 0; i < nodeCount; i++) {
-      nodes.push(new Node())
+      nodes.push(new Node(canvas.width, canvas.height))
     }
 
     // Connect nodes
@@ -88,23 +88,23 @@ export default function NeuralBackground() {
     })
 
     // Grid overlay
-    const drawGrid = () => {
+    const drawGrid = (ctx: CanvasRenderingContext2D, canvasWidth: number, canvasHeight: number) => {
       ctx.strokeStyle = "rgba(0, 255, 255, 0.03)"
       ctx.lineWidth = 1
 
       // Vertical lines
-      for (let x = 0; x < canvas.width; x += 50) {
+      for (let x = 0; x < canvasWidth; x += 50) {
         ctx.beginPath()
         ctx.moveTo(x, 0)
-        ctx.lineTo(x, canvas.height)
+        ctx.lineTo(x, canvasHeight)
         ctx.stroke()
       }
 
       // Horizontal lines
-      for (let y = 0; y < canvas.height; y += 50) {
+      for (let y = 0; y < canvasHeight; y += 50) {
         ctx.beginPath()
         ctx.moveTo(0, y)
-        ctx.lineTo(canvas.width, y)
+        ctx.lineTo(canvasWidth, y)
         ctx.stroke()
       }
     }
@@ -114,11 +114,11 @@ export default function NeuralBackground() {
       ctx.fillStyle = "rgba(2, 8, 23, 0.05)"
       ctx.fillRect(0, 0, canvas.width, canvas.height)
 
-      drawGrid()
+      drawGrid(ctx, canvas.width, canvas.height)
 
       nodes.forEach((node) => {
-        node.update()
-        node.draw()
+        node.update(canvas.width, canvas.height)
+        node.draw(ctx)
       })
 
       animationFrame = requestAnimationFrame(animate)

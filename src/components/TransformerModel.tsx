@@ -233,9 +233,10 @@ function TransformerModel3D({
   let hasError = false
   
   try {
+    // Always call the hook, even if we might not use it
     modelData = useGLTF('/transformer-part-2.glb')
   } catch (err) {
-    console.log('Using fallback model')
+    console.log('Model loading failed, using fallback')
     hasError = true
   }
   
