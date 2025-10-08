@@ -230,7 +230,7 @@ export default function Scene() {
           <Environment 
             preset="night"
             background={false}
-            intensity={0.2}
+            environmentIntensity={0.2}
           />
 
           {/* Enhanced Controls */}
