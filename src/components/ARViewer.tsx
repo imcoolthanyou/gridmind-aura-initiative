@@ -7,6 +7,7 @@ import { Group, PerspectiveCamera } from 'three'
 import { motion } from 'framer-motion'
 import { RotateCcw, ZoomIn, ZoomOut, Move3D, X, Info } from 'lucide-react'
 import { ARCalibration, ARTutorial, ARPerformanceMonitor, useARGestures, useDeviceOrientation } from './ARUtils'
+import ErrorBoundary from './ErrorBoundary'
 
 // AR Camera Feed Component
 function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) => void }) {
@@ -37,7 +38,21 @@ function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) =>
         setIsLoading(false)
       } catch (err) {
         console.error('Camera access error:', err)
-        setError('Failed to access camera. Please check permissions.')
+        let errorMessage = 'Failed to access camera.'
+        
+        if (err instanceof Error) {
+          if (err.name === 'NotAllowedError') {
+            errorMessage = 'Camera permission denied. Please allow camera access and refresh.'
+          } else if (err.name === 'NotFoundError') {
+            errorMessage = 'No camera found. Please ensure your device has a camera.'
+          } else if (err.name === 'NotSupportedError') {
+            errorMessage = 'Camera not supported on this device or browser.'
+          } else if (err.name === 'NotReadableError') {
+            errorMessage = 'Camera is being used by another application.'
+          }
+        }
+        
+        setError(errorMessage)
         setIsLoading(false)
       }
     }
@@ -84,7 +99,96 @@ function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) =>
   )
 }
 
-// Enhanced AR Model Component
+// Safe fallback procedural model (always works)
+function FallbackTransformerModel({ position, scale, rotation }: { 
+  position: [number, number, number]
+  scale: number 
+  rotation: [number, number, number]
+}) {
+  const groupRef = useRef<Group>(null)
+  
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+      groupRef.current.rotation.y += delta * 0.1
+      groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.5) * 0.05
+    }
+  })
+
+  return (
+    <group ref={groupRef} position={position} scale={scale} rotation={rotation}>
+      {/* Main transformer body */}
+      <mesh>
+        <boxGeometry args={[2, 1.5, 1]} />
+        <meshStandardMaterial 
+          color="#1a1a2e" 
+          metalness={0.8}
+          roughness={0.2}
+          emissive="#00FFFF"
+          emissiveIntensity={0.1}
+        />
+      </mesh>
+      
+      {/* High voltage bushings */}
+      <mesh position={[0, 1.2, 0]}>
+        <cylinderGeometry args={[0.1, 0.1, 0.8, 8]} />
+        <meshStandardMaterial 
+          color="#FF6B6B" 
+          metalness={0.9}
+          roughness={0.1}
+          emissive="#FF6B6B"
+          emissiveIntensity={0.2}
+        />
+      </mesh>
+      
+      {/* Cooling fins */}
+      <mesh position={[-1.2, 0, 0]}>
+        <boxGeometry args={[0.1, 1.2, 0.8]} />
+        <meshStandardMaterial color="#4ECDC4" metalness={0.7} roughness={0.3} />
+      </mesh>
+      <mesh position={[1.2, 0, 0]}>
+        <boxGeometry args={[0.1, 1.2, 0.8]} />
+        <meshStandardMaterial color="#4ECDC4" metalness={0.7} roughness={0.3} />
+      </mesh>
+      
+      {/* Indicator lights */}
+      <mesh position={[0.8, 0.5, 0.6]}>
+        <sphereGeometry args={[0.05]} />
+        <meshStandardMaterial 
+          color="#00FF00" 
+          emissive="#00FF00"
+          emissiveIntensity={0.8}
+        />
+      </mesh>
+      <mesh position={[0.8, 0.2, 0.6]}>
+        <sphereGeometry args={[0.05]} />
+        <meshStandardMaterial 
+          color="#FFD700" 
+          emissive="#FFD700"
+          emissiveIntensity={0.8}
+        />
+      </mesh>
+      
+      {/* AR Info Label */}
+      <Html
+        position={[0, 2, 0]}
+        center
+        distanceFactor={6}
+        occlude
+      >
+        <div className="bg-void/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-electric-cyan/50 text-center min-w-[200px]">
+          <h3 className="text-electric-cyan font-bold text-sm mb-1">Power Transformer</h3>
+          <div className="text-xs text-quantized-silver/80">
+            <p>Status: <span className="text-green-400">Operational</span></p>
+            <p>Load: <span className="text-yellow-400">75%</span></p>
+            <p>Temp: <span className="text-blue-400">85°C</span></p>
+          </div>
+        </div>
+      </Html>
+    </group>
+  )
+}
+
+// Enhanced AR Model Component with error handling
 function ARTransformerModel({ position, scale, rotation }: { 
   position: [number, number, number]
   scale: number 
@@ -92,18 +196,24 @@ function ARTransformerModel({ position, scale, rotation }: {
 }) {
   const groupRef = useRef<Group>(null)
   const [modelLoaded, setModelLoaded] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   
   // Try to load the transformer model, fallback to procedural model
   let modelData: any = null
-  let hasError = false
   
   try {
     modelData = useGLTF('/transformer-part-2.glb')
-    if (modelData.scene) {
+    if (modelData?.scene) {
       setModelLoaded(true)
     }
-  } catch {
-    hasError = true
+  } catch (error) {
+    console.log('GLTF model failed to load, using fallback')
+    setLoadError(true)
+  }
+
+  // Use fallback model if GLTF loading failed or no model data
+  if (loadError || !modelData?.scene) {
+    return <FallbackTransformerModel position={position} scale={scale} rotation={rotation} />
   }
 
   // Subtle animation for the AR model
@@ -113,82 +223,6 @@ function ARTransformerModel({ position, scale, rotation }: {
       groupRef.current.position.y = position[1] + Math.sin(state.clock.elapsedTime * 0.5) * 0.05
     }
   })
-
-  // Fallback procedural model if GLTF fails
-  if (hasError || !modelData?.scene) {
-    return (
-      <group ref={groupRef} position={position} scale={scale} rotation={rotation}>
-        {/* Main transformer body */}
-        <mesh>
-          <boxGeometry args={[2, 1.5, 1]} />
-          <meshStandardMaterial 
-            color="#1a1a2e" 
-            metalness={0.8}
-            roughness={0.2}
-            emissive="#00FFFF"
-            emissiveIntensity={0.1}
-          />
-        </mesh>
-        
-        {/* High voltage bushings */}
-        <mesh position={[0, 1.2, 0]}>
-          <cylinderGeometry args={[0.1, 0.1, 0.8, 8]} />
-          <meshStandardMaterial 
-            color="#FF6B6B" 
-            metalness={0.9}
-            roughness={0.1}
-            emissive="#FF6B6B"
-            emissiveIntensity={0.2}
-          />
-        </mesh>
-        
-        {/* Cooling fins */}
-        <mesh position={[-1.2, 0, 0]}>
-          <boxGeometry args={[0.1, 1.2, 0.8]} />
-          <meshStandardMaterial color="#4ECDC4" metalness={0.7} roughness={0.3} />
-        </mesh>
-        <mesh position={[1.2, 0, 0]}>
-          <boxGeometry args={[0.1, 1.2, 0.8]} />
-          <meshStandardMaterial color="#4ECDC4" metalness={0.7} roughness={0.3} />
-        </mesh>
-        
-        {/* Indicator lights */}
-        <mesh position={[0.8, 0.5, 0.6]}>
-          <sphereGeometry args={[0.05]} />
-          <meshStandardMaterial 
-            color="#00FF00" 
-            emissive="#00FF00"
-            emissiveIntensity={0.8}
-          />
-        </mesh>
-        <mesh position={[0.8, 0.2, 0.6]}>
-          <sphereGeometry args={[0.05]} />
-          <meshStandardMaterial 
-            color="#FFD700" 
-            emissive="#FFD700"
-            emissiveIntensity={0.8}
-          />
-        </mesh>
-        
-        {/* AR Info Label */}
-        <Html
-          position={[0, 2, 0]}
-          center
-          distanceFactor={6}
-          occlude
-        >
-          <div className="bg-void/90 backdrop-blur-sm px-3 py-2 rounded-lg border border-electric-cyan/50 text-center min-w-[200px]">
-            <h3 className="text-electric-cyan font-bold text-sm mb-1">Power Transformer</h3>
-            <div className="text-xs text-quantized-silver/80">
-              <p>Status: <span className="text-green-400">Operational</span></p>
-              <p>Load: <span className="text-yellow-400">75%</span></p>
-              <p>Temp: <span className="text-blue-400">85°C</span></p>
-            </div>
-          </div>
-        </Html>
-      </group>
-    )
-  }
 
   return (
     <group ref={groupRef} position={position} scale={scale} rotation={rotation}>
@@ -359,13 +393,21 @@ export default function ARViewer() {
           />
           <pointLight position={[-5, 5, 5]} intensity={0.4} color="#00FFFF" />
           
-          <Suspense fallback={null}>
-            <ARTransformerModel 
+          <ErrorBoundary fallback={
+            <FallbackTransformerModel 
               position={modelPosition}
               scale={modelScale}
               rotation={modelRotation}
             />
-          </Suspense>
+          }>
+            <Suspense fallback={null}>
+              <ARTransformerModel 
+                position={modelPosition}
+                scale={modelScale}
+                rotation={modelRotation}
+              />
+            </Suspense>
+          </ErrorBoundary>
         </Canvas>
       </div>
 
