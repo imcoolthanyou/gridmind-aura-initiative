@@ -6,6 +6,23 @@ import { Upload, MapPin, Zap, CheckCircle2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import NeuralBackground from "./NeuralBackground"
 import { getAllTransformers, addNewTransformer, updateTransformerFromIngestion, GridNode } from "@/lib/transformerData"
+import dynamic from "next/dynamic"
+
+// Dynamically import map for SSR compatibility
+const LeafletMap = dynamic(
+  () => import('./LeafletMapComponent'),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-full flex items-center justify-center bg-void">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-electric-cyan border-t-transparent rounded-full mx-auto mb-4 animate-spin" />
+          <p className="text-sm text-quantized-silver/60">Loading map...</p>
+        </div>
+      </div>
+    )
+  }
+)
 
 interface Asset {
   id: string
@@ -295,109 +312,107 @@ export default function DataIngestionPortal() {
             className="space-y-6"
           >
             <div className="glass-panel p-8">
-              <h2 className="text-2xl font-bold text-quantized-silver mb-6 font-sans">
-                Select Target Asset for Analysis
-              </h2>
-              
-              {/* 3D Holographic Map of Bhopal */}
-              <div className="relative h-80 glass-panel-bright rounded-lg p-6 mb-6 overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-electric-cyan/5 to-magenta/5" />
-                
-                {/* Map Background */}
-                <div 
-                  className="relative w-full h-full cursor-crosshair"
-                  onClick={handleMapClick}
-                >
-                  <div className="absolute inset-0 border border-electric-cyan/20 rounded-lg">
-                    <div className="absolute top-4 left-4 text-xs text-quantized-silver/60">
-                      {newTransformerRegion.toUpperCase()} GRID NETWORK
-                      {transformerOption === 'new' && uploadedFile && (
-                        <div className="text-electric-cyan text-xs mt-1">
-                          Click to place new transformer
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Grid Lines */}
-                    {[...Array(8)].map((_, i) => (
-                      <div key={`h-${i}`} 
-                        className="absolute w-full border-t border-electric-cyan/10"
-                        style={{ top: `${(i + 1) * 12.5}%` }}
-                      />
-                    ))}
-                    {[...Array(8)].map((_, i) => (
-                      <div key={`v-${i}`}
-                        className="absolute h-full border-l border-electric-cyan/10"
-                        style={{ left: `${(i + 1) * 12.5}%` }}
-                      />
-                    ))}
-                    
-                    {/* Asset Nodes */}
-                    {bhopalAssets
-                      .filter(asset => asset.location.toLowerCase().includes(newTransformerRegion))
-                      .map((asset) => (
-                      <motion.button
-                        key={asset.id}
-                        className="absolute transform -translate-x-1/2 -translate-y-1/2"
-                        style={{ 
-                          left: `${asset.position.x}%`, 
-                          top: `${asset.position.y}%` 
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedAsset(asset)
-                        }}
-                        whileHover={{ scale: 1.2 }}
-                        whileTap={{ scale: 0.9 }}
-                      >
-                        <div className="relative">
-                          <div 
-                            className={`w-4 h-4 rounded-full border-2 ${
-                              selectedAsset?.id === asset.id 
-                                ? 'bg-electric-cyan border-electric-cyan shadow-lg shadow-electric-cyan/50' 
-                                : 'border-quantized-silver/60 hover:border-electric-cyan'
-                            }`}
-                            style={{
-                              backgroundColor: selectedAsset?.id === asset.id 
-                                ? 'var(--electric-cyan)' 
-                                : getStatusColor(asset.status),
-                              boxShadow: selectedAsset?.id === asset.id 
-                                ? '0 0 20px var(--electric-cyan)' 
-                                : `0 0 8px ${getStatusColor(asset.status)}`
-                            }}
-                          />
-                          
-                          {/* Pulsing effect */}
-                          <div 
-                            className="absolute inset-0 rounded-full animate-ping opacity-20"
-                            style={{ backgroundColor: getStatusColor(asset.status) }}
-                          />
-                        </div>
-                      </motion.button>
-                    ))}
-                    
-                    {/* New Transformer Location Marker */}
-                    {newTransformerLocation && transformerOption === 'new' && (
-                      <motion.div
-                        initial={{ scale: 0 }}
-                        animate={{ scale: 1 }}
-                        className="absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"
-                        style={{
-                          left: `${((newTransformerLocation.lng - (newTransformerRegion === 'bhopal' ? 77.2 : 76.2)) / (newTransformerRegion === 'bhopal' ? 0.4 : 0.3)) * 100}%`,
-                          top: `${((newTransformerLocation.lat - (newTransformerRegion === 'bhopal' ? 23.1 : 21.7)) / (newTransformerRegion === 'bhopal' ? 0.3 : 0.2)) * 100}%`
-                        }}
-                      >
-                        <div className="relative">
-                          <div className="w-6 h-6 rounded-full bg-electric-cyan border-2 border-white shadow-lg shadow-electric-cyan/50" />
-                          <div className="absolute inset-0 rounded-full animate-ping bg-electric-cyan opacity-30" />
-                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs text-electric-cyan font-semibold whitespace-nowrap">
-                            New Location
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-quantized-silver font-sans">
+                  Select Target Asset for Analysis
+                </h2>
+                {/* Search Bar */}
+                <div className="w-64">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MapPin className="w-4 h-4 text-electric-cyan" />
+                    <span className="text-xs font-semibold text-quantized-silver">SEARCH ASSETS</span>
                   </div>
+                  <input
+                    type="text"
+                    placeholder="Search transformers..."
+                    className="w-full px-3 py-2 bg-void/50 border border-electric-cyan/30 rounded text-quantized-silver placeholder-quantized-silver/50 text-xs focus:border-electric-cyan focus:ring-2 focus:ring-electric-cyan/20 transition-all"
+                    onChange={(e) => {
+                      const searchTerm = e.target.value.toLowerCase()
+                      if (searchTerm) {
+                        const found = bhopalAssets.find(asset => 
+                          asset.name.toLowerCase().includes(searchTerm) || 
+                          asset.id.toLowerCase().includes(searchTerm)
+                        )
+                        if (found) setSelectedAsset(found)
+                      }
+                    }}
+                  />
                 </div>
+              </div>
+              
+              {/* Embedded Leaflet Map */}
+              <div className="relative h-80 glass-panel-bright rounded-lg overflow-hidden mb-6">
+                <div className="absolute top-4 left-4 z-10 text-xs text-quantized-silver/80 bg-void/80 px-2 py-1 rounded">
+                  {newTransformerRegion.toUpperCase()} GRID NETWORK
+                  {transformerOption === 'new' && uploadedFile && (
+                    <div className="text-electric-cyan text-xs mt-1">
+                      Click map to place transformer
+                    </div>
+                  )}
+                </div>
+                
+                <LeafletMap
+                  gridNodes={bhopalAssets.filter(asset => asset.location.toLowerCase().includes(newTransformerRegion)).map(asset => ({
+                    ...asset,
+                    type: 'transformer' as const,
+                    healthScore: asset.status === 'healthy' ? 85 : asset.status === 'warning' ? 65 : 35,
+                    position: {
+                      lat: newTransformerRegion === 'bhopal' 
+                        ? 23.1 + (asset.position.y / 100) * 0.3
+                        : 21.7 + (asset.position.y / 100) * 0.2,
+                      lng: newTransformerRegion === 'bhopal'
+                        ? 77.2 + (asset.position.x / 100) * 0.4
+                        : 76.2 + (asset.position.x / 100) * 0.3
+                    },
+                    connections: [],
+                    voltage: 11000,
+                    load: Math.floor(Math.random() * 40) + 60,
+                    temperature: Math.floor(Math.random() * 30) + 40,
+                    region: newTransformerRegion
+                  }))}
+                  powerLines={[]}
+                  mapTheme="dark"
+                  mapThemes={{
+                    dark: {
+                      url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+                      attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                      background: 'var(--void)'
+                    }
+                  }}
+                  failedNodes={new Set()}
+                  failedLines={new Set()}
+                  getNodeColor={(status: string) => {
+                    switch (status) {
+                      case "healthy": return "#10b981"
+                      case "warning": return "#FFBF00"
+                      case "critical": return "#DC2626"
+                      default: return "#10b981"
+                    }
+                  }}
+                  getLineColor={() => "#00FFFF"}
+                  onNodeSelect={(node: any) => {
+                    const asset = bhopalAssets.find(a => a.name === node.name)
+                    if (asset) setSelectedAsset(asset)
+                  }}
+                  onNodeHover={() => {}}
+                />
+                
+                {/* New transformer location marker overlay */}
+                {newTransformerLocation && transformerOption === 'new' && (
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 pointer-events-none z-10"
+                  >
+                    <div className="relative">
+                      <div className="w-6 h-6 rounded-full bg-electric-cyan border-2 border-white shadow-lg shadow-electric-cyan/50" />
+                      <div className="absolute inset-0 rounded-full animate-ping bg-electric-cyan opacity-30" />
+                      <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-xs text-electric-cyan font-semibold whitespace-nowrap bg-void/80 px-2 py-1 rounded">
+                        New Location
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
               </div>
               
               {/* Selected Asset Card */}

@@ -1,32 +1,12 @@
 "use client"
+"use client"
 
 import { useEffect, useRef, useState, useMemo } from "react"
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet"
+import { GridNode, PowerLine } from "@/lib/transformerData"
 
 // Leaflet imports
 let L: any = null
-
-interface GridNode {
-  id: string
-  name: string
-  type: "transformer" | "substation" | "generator"
-  position: { lat: number; lng: number }
-  status: "healthy" | "warning" | "critical" | "failed"
-  healthScore: number
-  connections: string[]
-  voltage: number
-  load: number
-  temperature: number
-}
-
-interface PowerLine {
-  id: string
-  from: string
-  to: string
-  status: "normal" | "overload" | "failed"
-  capacity: number
-  currentLoad: number
-}
 
 interface LeafletMapProps {
   gridNodes: GridNode[]
@@ -60,8 +40,8 @@ export default function LeafletMapComponent({
   const [isLeafletReady, setIsLeafletReady] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  // Khandwa center coordinates
-  const khandwaCenter: [number, number] = [21.8270, 76.3504]
+  // Center coordinates between Khandwa and Bhopal regions
+  const mapCenter: [number, number] = [22.5, 76.9] // Midpoint between the two regions
   const currentTheme = mapThemes[mapTheme]
 
   // Load Leaflet dynamically and safely
@@ -236,8 +216,8 @@ export default function LeafletMapComponent({
     return (
       <div ref={containerRef} className="w-full h-full">
         <MapContainer
-          center={khandwaCenter}
-          zoom={13}
+          center={mapCenter}
+          zoom={10}
           className="w-full h-full"
           style={{ 
             background: currentTheme.background, 
@@ -252,10 +232,10 @@ export default function LeafletMapComponent({
           keyboard={true}
           attributionControl={true}
           maxBounds={[
-            [21.7, 76.2],  // Southwest
-            [21.9, 76.5]   // Northeast  
+            [21.5, 76.0],  // Southwest (expanded for both regions)
+            [23.5, 78.0]   // Northeast (expanded for both regions) 
           ]}
-          maxBoundsViscosity={1.0}
+          maxBoundsViscosity={0.8}
         >
           {/* Dynamic themed tile layer */}
           <TileLayer

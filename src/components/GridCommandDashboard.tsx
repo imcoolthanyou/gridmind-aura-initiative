@@ -79,46 +79,16 @@ export default function GridCommandDashboard() {
   }
 
   // Convert GridNode to LeafletMapComponent compatible format
-  const handleNodeSelect = (node: GridNode) => {
-    // Create a compatible node without region property for the map component
-    const compatibleNode = {
-      id: node.id,
-      name: node.name,
-      type: node.type,
-      position: node.position,
-      status: node.status,
-      healthScore: node.healthScore,
-      connections: node.connections,
-      voltage: node.voltage,
-      load: node.load,
-      temperature: node.temperature
-    }
-    setSelectedNode(compatibleNode as any)
-  }
+  const handleNodeSelect = useCallback((node: GridNode) => {
+    setSelectedNode(node as any)
+  }, [])
   
-  const handleNodeHover = (node: GridNode | null) => {
-    if (!node) {
-      setHoveredNode(null)
-      return
-    }
-    // Create a compatible node without region property for the map component
-    const compatibleNode = {
-      id: node.id,
-      name: node.name,
-      type: node.type,
-      position: node.position,
-      status: node.status,
-      healthScore: node.healthScore,
-      connections: node.connections,
-      voltage: node.voltage,
-      load: node.load,
-      temperature: node.temperature
-    }
-    setHoveredNode(compatibleNode as any)
-  }
+  const handleNodeHover = useCallback((node: GridNode | null) => {
+    setHoveredNode(node as any)
+  }, [])
   
   // Props to pass to map components
-  const mapProps = {
+  const mapProps = useMemo(() => ({
     gridNodes,
     powerLines,
     mapTheme,
@@ -129,7 +99,7 @@ export default function GridCommandDashboard() {
     getLineColor,
     onNodeSelect: handleNodeSelect,
     onNodeHover: handleNodeHover
-  }
+  }), [gridNodes, powerLines, mapTheme, failedNodes, failedLines, handleNodeSelect, handleNodeHover])
 
   const simulateCascadingFailure = useCallback(async (sourceNode: GridNode) => {
     if (sourceNode.status !== "critical" || isAnalyzing) return
@@ -241,6 +211,31 @@ export default function GridCommandDashboard() {
 
   return (
     <div className="relative w-full h-full">
+      {/* Search Bar */}
+      <div className="absolute top-4 right-4 z-20">
+        <div className="glass-panel p-3 w-80">
+          <div className="flex items-center gap-2 mb-2">
+            <MapPin className="w-4 h-4 text-electric-cyan" />
+            <span className="text-sm font-semibold text-quantized-silver">SEARCH GRID ASSETS</span>
+          </div>
+          <input
+            type="text"
+            placeholder="Search transformers, substations..."
+            className="w-full px-3 py-2 bg-void/50 border border-electric-cyan/30 rounded text-quantized-silver placeholder-quantized-silver/50 text-sm focus:border-electric-cyan focus:ring-2 focus:ring-electric-cyan/20 transition-all"
+            onChange={(e) => {
+              const searchTerm = e.target.value.toLowerCase()
+              if (searchTerm) {
+                const found = gridNodes.find(node => 
+                  node.name.toLowerCase().includes(searchTerm) || 
+                  node.id.toLowerCase().includes(searchTerm)
+                )
+                if (found) setSelectedNode(found)
+              }
+            }}
+          />
+        </div>
+      </div>
+
       {/* Map Theme Controls */}
       <div className="absolute top-4 left-4 z-20">
         <div className="glass-panel p-3">
