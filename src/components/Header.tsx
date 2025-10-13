@@ -15,6 +15,7 @@ export default function Header() {
     { name: "Grid Command", path: "/grid-command" },
     { name: "Training", path: "/training" },
     { name: "Technology", path: "/technology" },
+    { name: "AR View", path: "/ar-view" },
   ]
 
   return (
