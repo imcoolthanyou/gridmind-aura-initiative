@@ -86,7 +86,7 @@ export function useARGestures(onPinch: (scale: number) => void, onRotate: (rotat
       document.removeEventListener('touchmove', handleTouchMove)
       document.removeEventListener('touchend', handleTouchEnd)
     }
-  }, [isGesturing, initialDistance, initialAngle])
+  }, [])
 
   return isGesturing
 }

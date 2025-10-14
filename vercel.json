@@ -1,0 +1,50 @@
+{
+  "buildCommand": "next build",
+  "framework": "nextjs",
+  "env": {
+    "NEXT_PUBLIC_ENABLE_AR": "true",
+    "NEXT_PUBLIC_ENABLE_3D": "true"
+  },
+  "headers": [
+    {
+      "source": "/ar-view",
+      "headers": [
+        {
+          "key": "Cross-Origin-Embedder-Policy",
+          "value": "require-corp"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=*, microphone=*, accelerometer=*, gyroscope=*, magnetometer=*"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-XSS-Protection",
+          "value": "1; mode=block"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/:path*"
+    }
+  ]
+}

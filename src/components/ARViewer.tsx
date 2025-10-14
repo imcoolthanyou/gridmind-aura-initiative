@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useEffect, useState, Suspense } from 'react'
+import { useRef, useEffect, useState, Suspense, useCallback } from 'react'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { useGLTF, OrbitControls, Environment, Center, Html } from '@react-three/drei'
 import { Group, PerspectiveCamera } from 'three'
@@ -12,11 +12,13 @@ import ErrorBoundary from './ErrorBoundary'
 // AR Camera Feed Component
 function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) => void }) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [stream, setStream] = useState<MediaStream | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
+    let isMounted = true
+    let currentStream: MediaStream | null = null
+
     const startCamera = async () => {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -27,17 +29,24 @@ function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) =>
           }
         })
         
-        setStream(mediaStream)
+        if (!isMounted) {
+          mediaStream.getTracks().forEach(track => track.stop())
+          return
+        }
+        
+        currentStream = mediaStream
         onCameraReady(mediaStream)
         
         if (videoRef.current) {
           videoRef.current.srcObject = mediaStream
-          videoRef.current.play()
+          await videoRef.current.play()
         }
         
         setIsLoading(false)
       } catch (err) {
         console.error('Camera access error:', err)
+        if (!isMounted) return
+        
         let errorMessage = 'Failed to access camera.'
         
         if (err instanceof Error) {
@@ -60,8 +69,9 @@ function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) =>
     startCamera()
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop())
+      isMounted = false
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop())
       }
     }
   }, [onCameraReady])
@@ -78,7 +88,7 @@ function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) =>
   }
 
   return (
-    <div className="absolute inset-0">
+    <div className="absolute inset-0" style={{ zIndex: 1 }}>
       {isLoading && (
         <div className="absolute inset-0 bg-void flex items-center justify-center z-10">
           <div className="text-center">
@@ -93,7 +103,6 @@ function CameraFeed({ onCameraReady }: { onCameraReady: (stream: MediaStream) =>
         playsInline
         muted
         className="w-full h-full object-cover"
-        style={{ transform: 'scaleX(-1)' }} // Mirror for better UX
       />
     </div>
   )
@@ -196,24 +205,16 @@ function ARTransformerModel({ position, scale, rotation }: {
 }) {
   const groupRef = useRef<Group>(null)
   const [modelLoaded, setModelLoaded] = useState(false)
-  const [loadError, setLoadError] = useState(false)
   
-  // Try to load the transformer model, fallback to procedural model
   let modelData: any = null
   
   try {
     modelData = useGLTF('/transformer-part-2.glb')
-    if (modelData?.scene) {
+    if (modelData && !modelLoaded) {
       setModelLoaded(true)
     }
   } catch (error) {
-    console.log('GLTF model failed to load, using fallback')
-    setLoadError(true)
-  }
-
-  // Use fallback model if GLTF loading failed or no model data
-  if (loadError || !modelData?.scene) {
-    return <FallbackTransformerModel position={position} scale={scale} rotation={rotation} />
+    console.error('Model loading error:', error)
   }
 
   // Subtle animation for the AR model
@@ -226,7 +227,11 @@ function ARTransformerModel({ position, scale, rotation }: {
 
   return (
     <group ref={groupRef} position={position} scale={scale} rotation={rotation}>
-      <primitive object={modelData.scene.clone()} />
+      {modelData?.scene ? (
+        <primitive object={modelData.scene.clone()} />
+      ) : (
+        <FallbackTransformerModel position={position} scale={scale} rotation={rotation} />
+      )}
       <Html
         position={[0, 2, 0]}
         center
@@ -305,61 +310,44 @@ function ARControls({
 
 // Main AR Viewer Component
 export default function ARViewer() {
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
-  const [modelPosition, setModelPosition] = useState<[number, number, number]>([0, -1, -3])
+  const [modelPosition] = useState<[number, number, number]>([0, -1, -3])
   const [modelScale, setModelScale] = useState(1)
-  const [modelRotation, setModelRotation] = useState<[number, number, number]>([0, 0, 0])
+  const [modelRotation] = useState<[number, number, number]>([0, 0, 0])
   const [showInstructions, setShowInstructions] = useState(true)
-  const [showCalibration, setShowCalibration] = useState(false)
-  const [showTutorial, setShowTutorial] = useState(false)
-  const [calibrationComplete, setCalibrationComplete] = useState(false)
+  const cameraStreamRef = useRef<MediaStream | null>(null)
 
-  const handleCameraReady = (stream: MediaStream) => {
-    setCameraStream(stream)
-    setShowCalibration(true)
-    // Hide instructions after camera starts
-    setTimeout(() => setShowInstructions(false), 3000)
-  }
+  const handleCameraReady = useCallback((stream: MediaStream) => {
+    cameraStreamRef.current = stream
+    // Hide instructions after 3 seconds
+    const timer = setTimeout(() => setShowInstructions(false), 3000)
+    return () => clearTimeout(timer)
+  }, [])
   
-  const handleCalibrationComplete = () => {
-    setShowCalibration(false)
-    setCalibrationComplete(true)
-    setShowTutorial(true)
-  }
-  
-  const handleTutorialClose = () => {
-    setShowTutorial(false)
-  }
-
-  const resetModel = () => {
-    setModelPosition([0, -1, -3])
+  const resetModel = useCallback(() => {
     setModelScale(1)
-    setModelRotation([0, 0, 0])
-  }
+  }, [])
 
-  const handleScaleChange = (delta: number) => {
+  const handleScaleChange = useCallback((delta: number) => {
     setModelScale(prev => Math.max(0.2, Math.min(2.0, prev + delta)))
-  }
+  }, [])
 
   // Gesture handling
-  const handlePinch = (scale: number) => {
+  const handlePinch = useCallback((scale: number) => {
     setModelScale(prev => Math.max(0.2, Math.min(2.0, prev * scale)))
-  }
+  }, [])
   
-  const handleRotateGesture = (rotation: number) => {
-    setModelRotation(prev => [prev[0], prev[1] + rotation, prev[2]])
-  }
+  const handleRotateGesture = useCallback((_rotation: number) => {
+    // Rotation handled by orbit controls
+  }, [])
   
-  const isGesturing = useARGestures(handlePinch, handleRotateGesture)
-  const orientation = useDeviceOrientation()
+  useARGestures(handlePinch, handleRotateGesture)
   
-  const handleClose = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop())
+  const handleClose = useCallback(() => {
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(track => track.stop())
     }
-    // Navigate back or close AR view
     window.history.back()
-  }
+  }, [])
 
   return (
     <div className="relative w-full h-[80vh] rounded-xl overflow-hidden bg-black">
@@ -367,7 +355,7 @@ export default function ARViewer() {
       <CameraFeed onCameraReady={handleCameraReady} />
       
       {/* AR Overlay Canvas */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0" style={{ zIndex: 5, pointerEvents: 'none' }}>
         <Canvas
           camera={{
             position: [0, 0, 5],
@@ -417,7 +405,8 @@ export default function ARViewer() {
           initial={{ opacity: 1 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute top-4 left-4 right-4 z-10"
+          className="absolute top-4 left-4 right-4"
+          style={{ zIndex: 15 }}
         >
           <div className="bg-void/90 backdrop-blur-sm p-4 rounded-lg border border-electric-cyan/30">
             <div className="flex items-center gap-2 mb-2">
@@ -434,7 +423,7 @@ export default function ARViewer() {
       )}
 
       {/* AR Controls */}
-      <div className="pointer-events-auto">
+      <div style={{ zIndex: 20, pointerEvents: 'auto' }}>
         <ARControls
           onReset={resetModel}
           onScaleChange={handleScaleChange}
@@ -443,35 +432,13 @@ export default function ARViewer() {
         />
       </div>
 
-      {/* Performance Monitor */}
-      {calibrationComplete && <ARPerformanceMonitor />}
-      
       {/* Status Indicator */}
-      <div className="absolute top-4 right-4 z-10">
+      <div className="absolute top-4 right-4" style={{ zIndex: 15 }}>
         <div className="flex items-center gap-2 bg-green-500/20 text-green-400 px-3 py-2 rounded-full text-sm">
           <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
           <span>AR Active</span>
         </div>
       </div>
-      
-      {/* AR Calibration */}
-      {showCalibration && (
-        <ARCalibration onCalibrationComplete={handleCalibrationComplete} />
-      )}
-      
-      {/* AR Tutorial */}
-      {showTutorial && (
-        <ARTutorial onClose={handleTutorialClose} />
-      )}
-      
-      {/* Gesture Indicator */}
-      {isGesturing && (
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
-          <div className="bg-electric-cyan/20 text-electric-cyan px-4 py-2 rounded-full text-sm font-medium">
-            Adjusting Model
-          </div>
-        </div>
-      )}
     </div>
   )
 }
