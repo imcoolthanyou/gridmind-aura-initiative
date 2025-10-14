@@ -27,6 +27,7 @@ const nextConfig: NextConfig = {
   
   // Production optimizations
   reactStrictMode: true,
+  swcMinify: true,
   
   // Experimental features for better performance
   experimental: {
